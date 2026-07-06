@@ -3,34 +3,13 @@
 #   docker compose up --build
 #
 # - Builds only the config_store image.
-# - Pulls in a MongoDB sidecar and MySQL sidecar so the service is fully runnable on its own.
+# - Requires external MongoDB and MySQL instances.
 # - Source is bind-mounted for hot reload.
-# - MongoDB and MySQL data live on named volumes.
 #
 # Host ports:
-#   config_store : 8002 -> 8002
+#   config_store : 6002 -> 6002
 
 services:
-  mysql:
-    image: mysql:8.0
-    container_name: live_algo_config_store_mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: config_store
-      MYSQL_USER: config_store
-      MYSQL_PASSWORD: config_store_password
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
   config_store:
     build:
       context: .
@@ -44,35 +23,27 @@ services:
       - "--host"
       - "0.0.0.0"
       - "--port"
-      - "8002"
+      - "6002"
       - "--reload"
     environment:
-      CONFIG_STORE_PORT: "8002"
+      CONFIG_STORE_PORT: "6002"
       MONGO_URI: ${MONGO_URI}
       MONGO_DB: ${MONGO_DB}
       MONGO_COLLECTION: ${MONGO_COLLECTION}
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_USER: config_store
-      MYSQL_PASSWORD: config_store_password
-      MYSQL_DATABASE: config_store
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
       SYNC_INTERVAL: ${SYNC_INTERVAL}
     ports:
-      - "8002:8002"
+      - "6002:6002"
     volumes:
       - .:/app
-      - config_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8002/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:6002/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-volumes:
-  config_data:
-  mysql_data:
