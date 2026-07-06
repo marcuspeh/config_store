@@ -1,8 +1,4 @@
 # syntax=docker/dockerfile:1
-# Build context: the repository root (one level above this directory).
-# The `config_store.main:app` entry point needs the package to live at
-# /app/config_store, with /app on sys.path.
-
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,11 +14,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first for layer caching.
-COPY config_store/requirements.txt /tmp/requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy only this service's source tree.
-COPY config_store/ /app/config_store/
+COPY . /app/
 
 # Drop privileges.
 RUN useradd --create-home --shell /bin/bash app \
@@ -31,4 +27,4 @@ USER app
 
 EXPOSE 8002
 
-CMD ["uvicorn", "config_store.main:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv("config_store/.env")
+load_dotenv(".env")
 
 from .models import ConfigResponse, HealthResponse
 from .config_manager import ConfigManager
@@ -30,10 +30,10 @@ async def sync_cache_periodically(interval: int):
 async def lifespan(app: FastAPI):
     # Initialize managers and database
     await config_manager.init()
-    
+
     # Initial sync from remote
     await config_manager.sync_from_remote()
-    
+
     # Start background task
     sync_task = asyncio.create_task(sync_cache_periodically(settings.SYNC_INTERVAL))
     yield
@@ -55,7 +55,7 @@ async def get_config(project: str, key: str):
     value = await config_manager.get_config(project, key)
     if value is None:
         raise HTTPException(status_code=404, detail=f"Config not found for project '{project}' and key '{key}'")
-    
+
     return ConfigResponse(
         project=project,
         key=key,

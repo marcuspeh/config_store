@@ -1,6 +1,5 @@
 # Standalone compose file for config_store.
 # Run from this directory:
-#   cd config_store
 #   docker compose up --build
 #
 # - Builds only the config_store image.
@@ -34,14 +33,14 @@ services:
 
   config_store:
     build:
-      context: ..
-      dockerfile: config_store/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     image: live_algo/config_store:latest
     container_name: live_algo_config_store
     working_dir: /app
     command:
       - "uvicorn"
-      - "config_store.main:app"
+      - "main:app"
       - "--host"
       - "0.0.0.0"
       - "--port"
@@ -61,10 +60,10 @@ services:
     ports:
       - "8002:8002"
     volumes:
-      - ./config_store:/app/config_store
+      - .:/app
       - config_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8002/health"]
       interval: 30s
       timeout: 5s
       retries: 3

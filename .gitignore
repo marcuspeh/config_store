@@ -8,8 +8,10 @@ __pycache__
 venv
 .env
 .env.local
+.env.example
 *.log
 .mypy_cache
 .pytest_cache
 .coverage
 htmlcov/
+src/.env

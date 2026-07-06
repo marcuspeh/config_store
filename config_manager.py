@@ -1,9 +1,9 @@
 import logging
-from typing import List, Tuple, Optional
+from typing import Optional
 
 from .models import CacheStats
-from .mongodb_manager import MongoDBManager
-from .mysql_manager import MySQLManager
+from .db.mongodb_manager import MongoDBManager
+from .db.mysql_manager import MySQLManager
 from .settings import settings
 
 logger = logging.getLogger(__name__)

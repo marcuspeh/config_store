@@ -1,18 +1,9 @@
 import logging
 from typing import Optional, List, Tuple
-from tortoise import Tortoise, fields
-from tortoise.models import Model
+from tortoise import Tortoise
+from .models import ConfigModel
 
 logger = logging.getLogger(__name__)
-
-class ConfigModel(Model):
-    """Tortoise ORM model for configs table."""
-    project = fields.CharField(max_length=255, pk=True)
-    config_key = fields.CharField(max_length=255, pk=True)
-    value = fields.TextField()
-
-    class Meta:
-        table = "configs"
 
 class MySQLManager:
     def __init__(self, host: str, port: int, user: str, password: str, database: str):
@@ -26,7 +17,7 @@ class MySQLManager:
         """Initialize Tortoise ORM and create tables."""
         await Tortoise.init(
             db_url=f"mysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-            modules={"models": ["mysql_manager"]},
+            modules={"models": ["db.models"]},
         )
         await Tortoise.generate_schemas()
         logger.info(f"MySQL database initialized at {self.host}:{self.port}/{self.database}")
