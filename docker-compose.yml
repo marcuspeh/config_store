@@ -4,14 +4,34 @@
 #   docker compose up --build
 #
 # - Builds only the config_store image.
-# - Pulls in a Mongo sidecar so the service is fully runnable on its own.
+# - Pulls in a MongoDB sidecar and MySQL sidecar so the service is fully runnable on its own.
 # - Source is bind-mounted for hot reload.
-# - SQLite cache and Mongo data live on named volumes.
+# - MongoDB and MySQL data live on named volumes.
 #
 # Host ports:
 #   config_store : 8002 -> 8002
 
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: live_algo_config_store_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: config_store
+      MYSQL_USER: config_store
+      MYSQL_PASSWORD: config_store_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   config_store:
     build:
       context: ..
@@ -32,8 +52,12 @@ services:
       MONGO_URI: ${MONGO_URI}
       MONGO_DB: ${MONGO_DB}
       MONGO_COLLECTION: ${MONGO_COLLECTION}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: config_store
+      MYSQL_PASSWORD: config_store_password
+      MYSQL_DATABASE: config_store
       SYNC_INTERVAL: ${SYNC_INTERVAL}
-      SQLITE_DB_PATH: ${SQLITE_DB_PATH}
     ports:
       - "8002:8002"
     volumes:
@@ -46,6 +70,10 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 volumes:
   config_data:
+  mysql_data:
