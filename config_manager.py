@@ -29,7 +29,7 @@ class ConfigManager:
             logger.info("Starting synchronization from MongoDB to MySQL...")
             mongo_configs = await self.mongo.fetch_all_configs()
 
-            # Prepare data for MySQL upsert and tracking
+            seen = set()
             upsert_data = []
             current_keys = []
 
@@ -38,7 +38,8 @@ class ConfigManager:
                 key = doc.get("key")
                 value = doc.get("value")
 
-                if project and key:
+                if project and key and (project, key) not in seen:
+                    seen.add((project, key))
                     upsert_data.append((project, key, value))
                     current_keys.append((project, key))
 

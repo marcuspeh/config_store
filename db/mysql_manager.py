@@ -1,6 +1,8 @@
 import logging
 from typing import Optional, List, Tuple
 from tortoise import Tortoise
+from tortoise.expressions import Q
+from tortoise.functions import Count
 from .models import ConfigModel
 
 logger = logging.getLogger(__name__)
@@ -27,39 +29,28 @@ class MySQLManager:
         if not configs:
             return
 
-        placeholders = ",".join(["(%s,%s,%s)"] * len(configs))
-        params = [v for row in configs for v in row]
+        records = []
+        for project, key, value in configs:
+            records.append(ConfigModel(project=project, config_key=key, value=value))
 
-        await ConfigModel.raw(
-            f"""
-            INSERT INTO configs (project, config_key, value)
-            VALUES {placeholders}
-            ON DUPLICATE KEY UPDATE value = VALUES(value)
-            """,
-            params,
-        )
+        await ConfigModel.bulk_create(records, on_conflict=["project", "config_key"], update_fields=["value"], batch_size=1000)
         logger.info(f"Upserted {len(configs)} records into MySQL")
 
     async def delete_stale_configs(self, current_keys: List[Tuple[str, str]]):
-        """Delete records from MySQL that are not in the current_keys list."""
+        """Delete records from MySQL that are not in the current_keys list using pure ORM."""
         if not current_keys:
-            # No current keys means everything is stale
             deleted = await ConfigModel.all().delete()
             logger.info(f"Deleted {deleted} stale records from MySQL (no current keys)")
             return
 
-        # Use a NOT IN clause via raw SQL for efficiency
-        placeholders = ",".join(["(%s,%s)"] * len(current_keys))
-        params = [v for pair in current_keys for v in pair]
-
-        await ConfigModel.raw(
-            f"""
-            DELETE FROM configs
-            WHERE (project, config_key) NOT IN ({placeholders})
-            """,
-            params,
-        )
-        logger.info(f"Deleted stale records not in current set of {len(current_keys)} keys")
+        batch_size = 500
+        total_deleted = 0
+        for i in range(0, len(current_keys), batch_size):
+            batch = current_keys[i:i + batch_size]
+            conditions = [Q(project=p, config_key=k) for p, k in batch]
+            keep_conditions = Q(*conditions, join_type="OR")
+            total_deleted += await ConfigModel.filter(~keep_conditions).delete()
+        logger.info(f"Deleted {total_deleted} stale records not in current set of {len(current_keys)} keys")
 
     async def get_config(self, project: str, config_key: str) -> Optional[str]:
         """Retrieve a config value from MySQL."""
@@ -68,11 +59,17 @@ class MySQLManager:
 
     async def get_stats(self) -> dict:
         """Return cache statistics from MySQL."""
-        distinct_projects = await ConfigModel.raw(
-            "SELECT COUNT(DISTINCT project) AS count FROM configs"
-        )
-        projects_count = distinct_projects[0]["count"]
-        keys_count = await ConfigModel.all().count()
+        row = await ConfigModel.annotate(
+            projects_count=Count("project", distinct=True),
+            keys_count=Count("id"),
+        ).values("projects_count", "keys_count").first()
+
+        if row:
+            projects_count = row["projects_count"]
+            keys_count = row["keys_count"]
+        else:
+            projects_count = 0
+            keys_count = 0
 
         return {
             "projects_loaded": projects_count,
