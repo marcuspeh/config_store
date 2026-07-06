@@ -23,27 +23,43 @@ class MySQLManager:
         logger.info(f"MySQL database initialized at {self.host}:{self.port}/{self.database}")
 
     async def upsert_configs(self, configs: List[Tuple[str, str, str]]):
-        """Batch insert or replace configuration records."""
-        for project, key, value in configs:
-            await ConfigModel.update_or_create(
-                project=project,
-                config_key=key,
-                defaults={"value": value}
-            )
+        """Batch insert or replace configuration records in a single statement."""
+        if not configs:
+            return
+
+        placeholders = ",".join(["(%s,%s,%s)"] * len(configs))
+        params = [v for row in configs for v in row]
+
+        await ConfigModel.raw(
+            f"""
+            INSERT INTO configs (project, config_key, value)
+            VALUES {placeholders}
+            ON DUPLICATE KEY UPDATE value = VALUES(value)
+            """,
+            params,
+        )
         logger.info(f"Upserted {len(configs)} records into MySQL")
 
     async def delete_stale_configs(self, current_keys: List[Tuple[str, str]]):
         """Delete records from MySQL that are not in the current_keys list."""
         if not current_keys:
+            # No current keys means everything is stale
+            deleted = await ConfigModel.all().delete()
+            logger.info(f"Deleted {deleted} stale records from MySQL (no current keys)")
             return
 
-        existing = await ConfigModel.all().values_list("project", "config_key")
-        keys_to_delete = [key for key in existing if key not in current_keys]
+        # Use a NOT IN clause via raw SQL for efficiency
+        placeholders = ",".join(["(%s,%s)"] * len(current_keys))
+        params = [v for pair in current_keys for v in pair]
 
-        if keys_to_delete:
-            for project, key in keys_to_delete:
-                await ConfigModel.filter(project=project, config_key=key).delete()
-            logger.info(f"Deleted {len(keys_to_delete)} stale records from MySQL")
+        await ConfigModel.raw(
+            f"""
+            DELETE FROM configs
+            WHERE (project, config_key) NOT IN ({placeholders})
+            """,
+            params,
+        )
+        logger.info(f"Deleted stale records not in current set of {len(current_keys)} keys")
 
     async def get_config(self, project: str, config_key: str) -> Optional[str]:
         """Retrieve a config value from MySQL."""
@@ -52,7 +68,10 @@ class MySQLManager:
 
     async def get_stats(self) -> dict:
         """Return cache statistics from MySQL."""
-        projects_count = await ConfigModel.distinct().count()
+        distinct_projects = await ConfigModel.raw(
+            "SELECT COUNT(DISTINCT project) AS count FROM configs"
+        )
+        projects_count = distinct_projects[0]["count"]
         keys_count = await ConfigModel.all().count()
 
         return {
