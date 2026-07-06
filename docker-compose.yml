@@ -1,0 +1,51 @@
+# Standalone compose file for config_store.
+# Run from this directory:
+#   cd config_store
+#   docker compose up --build
+#
+# - Builds only the config_store image.
+# - Pulls in a Mongo sidecar so the service is fully runnable on its own.
+# - Source is bind-mounted for hot reload.
+# - SQLite cache and Mongo data live on named volumes.
+#
+# Host ports:
+#   config_store : 8002 -> 8002
+
+services:
+  config_store:
+    build:
+      context: ..
+      dockerfile: config_store/Dockerfile
+    image: live_algo/config_store:latest
+    container_name: live_algo_config_store
+    working_dir: /app
+    command:
+      - "uvicorn"
+      - "config_store.main:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8002"
+      - "--reload"
+    environment:
+      CONFIG_STORE_PORT: "8002"
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: ${MONGO_DB}
+      MONGO_COLLECTION: ${MONGO_COLLECTION}
+      SYNC_INTERVAL: ${SYNC_INTERVAL}
+      SQLITE_DB_PATH: ${SQLITE_DB_PATH}
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./config_store:/app/config_store
+      - config_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  config_data:
