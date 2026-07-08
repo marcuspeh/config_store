@@ -20,20 +20,25 @@ class MySQLManager:
         await Tortoise.init(
             db_url=f"mysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
             modules={"models": ["db.models"]},
+            _enable_global_fallback=True,
         )
         await Tortoise.generate_schemas()
         logger.info(f"MySQL database initialized at {self.host}:{self.port}/{self.database}")
 
     async def upsert_configs(self, configs: List[Tuple[str, str, str]]):
-        """Batch insert or replace configuration records in a single statement."""
+        """Batch insert or replace configuration records."""
         if not configs:
             return
 
-        records = []
         for project, key, value in configs:
-            records.append(ConfigModel(project=project, config_key=key, value=value))
-
-        await ConfigModel.bulk_create(records, on_conflict=["project", "config_key"], update_fields=["value"], batch_size=1000)
+            obj, _ = await ConfigModel.get_or_create(
+                project=project,
+                config_key=key,
+                defaults={"value": value}
+            )
+            if obj.value != value:
+                obj.value = value
+                await obj.save()
         logger.info(f"Upserted {len(configs)} records into MySQL")
 
     async def delete_stale_configs(self, current_keys: List[Tuple[str, str]]):
@@ -59,21 +64,12 @@ class MySQLManager:
 
     async def get_stats(self) -> dict:
         """Return cache statistics from MySQL."""
-        row = await ConfigModel.annotate(
-            projects_count=Count("project", distinct=True),
-            keys_count=Count("id"),
-        ).values("projects_count", "keys_count").first()
-
-        if row:
-            projects_count = row["projects_count"]
-            keys_count = row["keys_count"]
-        else:
-            projects_count = 0
-            keys_count = 0
+        all_configs = await ConfigModel.all().values("project")
+        projects = set(c["project"] for c in all_configs)
 
         return {
-            "projects_loaded": projects_count,
-            "cache_keys_total": keys_count
+            "projects_loaded": len(projects),
+            "cache_keys_total": len(all_configs)
         }
 
     async def close(self):

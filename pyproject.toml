@@ -23,6 +23,7 @@ dependencies = [
     "aiomysql",
     "pydantic-settings",
     "python-dotenv",
+    "cryptography>=49.0.0",
 ]
 
 [project.optional-dependencies]
