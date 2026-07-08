@@ -81,6 +81,16 @@ Configs in MongoDB should have this structure:
 }
 ```
 
+## Testing
+
+```bash
+# Install test dependencies
+uv pip install -e ".[test]"
+
+# Run tests
+uv run pytest tests/ -v
+```
+
 ## License
 
 MIT

@@ -1,10 +1,10 @@
 import logging
 from typing import Optional
 
-from .models import CacheStats
-from .db.mongodb_manager import MongoDBManager
-from .db.mysql_manager import MySQLManager
-from .settings import settings
+from models import CacheStats
+from db.mongodb_manager import MongoDBManager
+from db.mysql_manager import MySQLManager
+from settings import settings
 
 logger = logging.getLogger(__name__)
 

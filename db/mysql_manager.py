@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple
 from tortoise import Tortoise
 from tortoise.expressions import Q
 from tortoise.functions import Count
-from .models import ConfigModel
+from db.models import ConfigModel
 
 logger = logging.getLogger(__name__)
 

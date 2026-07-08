@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv(".env")
 
-from .models import ConfigResponse, HealthResponse
-from .config_manager import ConfigManager
-from .settings import settings
+from models import ConfigResponse, HealthResponse
+from config_manager import ConfigManager
+from settings import settings
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
