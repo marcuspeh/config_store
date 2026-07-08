@@ -21,6 +21,8 @@ services:
     working_dir: /app
 
     command:
+      - "uv"
+      - "run"
       - "uvicorn"
       - "main:app"
       - "--host"
