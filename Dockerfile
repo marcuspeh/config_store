@@ -16,8 +16,8 @@ RUN apt-get update \
 RUN pip install uv
 
 # Install Python deps first for layer caching.
-COPY pyproject.toml /tmp/pyproject.toml
-RUN uv sync --frozen -r /tmp/pyproject.toml
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen
 
 # Copy only this service's source tree.
 COPY . /app/

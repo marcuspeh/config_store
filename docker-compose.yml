@@ -14,9 +14,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+
     image: live_algo/config_store:latest
     container_name: live_algo_config_store
+    restart: unless-stopped
     working_dir: /app
+
     command:
       - "uvicorn"
       - "main:app"
@@ -25,6 +28,7 @@ services:
       - "--port"
       - "6002"
       - "--reload"
+
     environment:
       CONFIG_STORE_PORT: "6002"
       MONGO_URI: ${MONGO_URI}
@@ -36,14 +40,20 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       SYNC_INTERVAL: ${SYNC_INTERVAL}
-    ports:
-      - "6002:6002"
+      
     volumes:
       - .:/app
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:6002/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
-    restart: unless-stopped
+
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true
