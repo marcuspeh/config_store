@@ -1,15 +1,16 @@
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 
 # Load environment variables from .env file
 load_dotenv(".env")
 
-from models import ConfigResponse, HealthResponse
-from config_manager import ConfigManager
-from settings import settings
+from models import ConfigResponse, HealthResponse  # noqa: E402
+from config_manager import ConfigManager  # noqa: E402
+from settings import settings  # noqa: E402
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

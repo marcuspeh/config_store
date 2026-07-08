@@ -91,6 +91,16 @@ uv pip install -e ".[test]"
 uv run pytest tests/ -v
 ```
 
+## Linting
+
+```bash
+# Install linting dependencies
+uv pip install -e ".[test]"
+
+# Run ruff linter
+uv run ruff check .
+```
+
 ## License
 
 MIT

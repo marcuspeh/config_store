@@ -1,6 +1,6 @@
 """Test ConfigManager."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 from config_manager import ConfigManager
 from models import CacheStats
