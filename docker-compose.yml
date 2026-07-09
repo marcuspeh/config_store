@@ -15,8 +15,8 @@ services:
       context: .
       dockerfile: Dockerfile
 
-    image: live_algo/config_store:latest
-    container_name: live_algo_config_store
+    image: config_store:latest
+    container_name: config_store
     restart: unless-stopped
     working_dir: /app
 
