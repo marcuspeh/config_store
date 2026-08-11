@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -8,45 +7,44 @@ from fastapi import FastAPI
 # Load environment variables from .env file
 load_dotenv(".env")
 
-from app.api.routes import router  # noqa: E402
-from app.core.config_manager import ConfigManager  # noqa: E402
-from app.config.settings import settings  # noqa: E402
+from app.api.routes import router as api_router  # noqa: E402
+from app.config.settings import get_settings  # noqa: E402
+from app.database.session import close_db, init_db  # noqa: E402
+from app.services.config_service import ConfigService  # noqa: E402
+from app.services.sync_scheduler import SyncScheduler  # noqa: E402
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-config_manager = ConfigManager()
-
-
-async def sync_cache_periodically(interval: int):
-    """Background task to refresh the cache periodically."""
-    while True:
-        try:
-            await config_manager.sync_from_remote()
-        except Exception as e:
-            logger.error(f"Periodic sync failed: {e}")
-        await asyncio.sleep(interval)
+config_service = ConfigService()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize managers and database
-    await config_manager.init()
+    settings = get_settings()
+    scheduler: SyncScheduler | None = None
+    try:
+        await init_db()
+        logger.info("Database initialized")
 
-    # Initial sync from remote
-    await config_manager.sync_from_remote()
+        # Initial sync from remote
+        await config_service.sync_from_remote()
 
-    # Start background task
-    sync_task = asyncio.create_task(sync_cache_periodically(settings.sync_interval))
-    yield
-    # Cleanup
-    sync_task.cancel()
-    await config_manager.close()
+        # Start background sync loop
+        scheduler = SyncScheduler(config_service, settings.sync_interval)
+        scheduler.start()
+        logger.info(
+            f"Periodic sync scheduler started (interval={settings.sync_interval}s)"
+        )
+        yield
+    finally:
+        if scheduler is not None:
+            await scheduler.stop()
+        await close_db()
 
 
 app = FastAPI(title="Config Store", lifespan=lifespan)
-app.include_router(router)
+app.include_router(api_router)
 
 
 if __name__ == "__main__":

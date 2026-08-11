@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 # Pre-create mock classes
-class MockMongoDBManager:
+class MockMongoClient:
     def __init__(self, *args, **kwargs):
         pass
 
@@ -20,35 +20,32 @@ class MockMongoDBManager:
         pass
 
 
-class MockMySQLManager:
+class MockConfigRepository:
     def __init__(self, *args, **kwargs):
         pass
 
-    async def init_db(self):
+    async def upsert(self, configs):
         pass
 
-    async def upsert_configs(self, configs):
+    async def delete_stale(self, keys):
         pass
 
-    async def delete_stale_configs(self, keys):
-        pass
-
-    async def get_config(self, project, key):
+    async def get_value(self, project, key):
         return None
 
-    async def get_stats(self):
+    async def stats(self):
         return {"projects_loaded": 0, "cache_keys_total": 0}
 
-    async def close(self):
-        pass
 
+# Stub the new client + repository modules so tests can construct
+# ConfigService without instantiating real Mongo / Tortoise.
+mock_clients_module = MagicMock()
+mock_clients_module.MongoClient = MockMongoClient
 
-# Create and install the mock db module BEFORE any other imports.
-# Both the old (`db.*`) and new (`app.db.*`) module paths are stubbed so
-# tests can import the app modules under test without dragging in real Tortoise.
+mock_repositories_module = MagicMock()
+mock_repositories_module.ConfigRepository = MockConfigRepository
+
 mock_db_module = MagicMock()
-mock_db_module.MongoDBManager = MockMongoDBManager
-mock_db_module.MySQLManager = MockMySQLManager
 mock_db_module.models = MagicMock()
 
 # Legacy module paths (kept for any stragglers).
@@ -57,13 +54,17 @@ sys.modules['db.models'] = mock_db_module.models
 sys.modules['db.mongodb_manager'] = mock_db_module
 sys.modules['db.mysql_manager'] = mock_db_module
 
-# Current module paths used by app.core.config_manager and app.db.mysql_manager.
-# (Settings moved to app.config.settings — not stubbed here because nothing
-# imports it during test collection.)
-sys.modules['app.db'] = mock_db_module
-sys.modules['app.db.models'] = mock_db_module.models
-sys.modules['app.db.mongodb_manager'] = mock_db_module
-sys.modules['app.db.mysql_manager'] = mock_db_module
+# Current module paths used by app.services.config_service.
+# NOTE: We stub the *attributes* of app.clients and app.database.repositories
+# but leave the parent packages themselves untouched so the real
+# app.database.session module can still be imported.
+import app.clients as _app_clients  # noqa: E402
+import app.clients.mongo as _app_clients_mongo  # noqa: E402
+import app.database.repositories as _app_repos  # noqa: E402
+
+_app_clients.MongoClient = MockMongoClient  # type: ignore[attr-defined]
+_app_clients_mongo.MongoClient = MockMongoClient  # type: ignore[attr-defined]
+_app_repos.ConfigRepository = MockConfigRepository  # type: ignore[attr-defined]
 
 
 @pytest.fixture
@@ -76,8 +77,8 @@ def event_loop():
 
 
 @pytest.fixture
-def mock_mongo_manager():
-    """Mock MongoDB manager."""
+def mock_mongo_client():
+    """Mock MongoClient."""
     mock = AsyncMock()
     mock.fetch_all_configs = AsyncMock(return_value=[])
     mock.close = AsyncMock()
@@ -85,15 +86,13 @@ def mock_mongo_manager():
 
 
 @pytest.fixture
-def mock_mysql_manager():
-    """Mock MySQL manager."""
+def mock_config_repository():
+    """Mock ConfigRepository."""
     mock = AsyncMock()
-    mock.init_db = AsyncMock()
-    mock.upsert_configs = AsyncMock()
-    mock.delete_stale_configs = AsyncMock()
-    mock.get_config = AsyncMock(return_value=None)
-    mock.get_stats = AsyncMock(return_value={"projects_loaded": 0, "cache_keys_total": 0})
-    mock.close = AsyncMock()
+    mock.upsert = AsyncMock()
+    mock.delete_stale = AsyncMock()
+    mock.get_value = AsyncMock(return_value=None)
+    mock.stats = AsyncMock(return_value={"projects_loaded": 0, "cache_keys_total": 0})
     return mock
 
 
