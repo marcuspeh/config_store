@@ -43,7 +43,7 @@ MongoDB (Remote) ──sync──> MySQL (Local Cache) ──read──> API
 uv sync
 
 # Run the server
-uv run uvicorn main:app --reload
+uv run uvicorn app.main:app --reload  
 ```
 
 ### Docker

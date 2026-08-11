@@ -2,7 +2,7 @@ import logging
 from typing import Optional, List, Tuple
 from tortoise import Tortoise
 from tortoise.expressions import Q
-from db.models import ConfigModel
+from app.db.models import ConfigModel
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class MySQLManager:
         """Initialize Tortoise ORM and create tables."""
         await Tortoise.init(
             db_url=f"mysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-            modules={"models": ["db.models"]},
+            modules={"models": ["app.db.models"]},
             _enable_global_fallback=True,
         )
         await Tortoise.generate_schemas()

@@ -1,22 +1,24 @@
 import logging
 from typing import Optional
 
-from models import CacheStats
-from db.mongodb_manager import MongoDBManager
-from db.mysql_manager import MySQLManager
-from settings import settings
+from app.core.models import CacheStats
+from app.db.mongodb_manager import MongoDBManager
+from app.db.mysql_manager import MySQLManager
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 class ConfigManager:
     def __init__(self):
-        self.mongo = MongoDBManager(settings.MONGO_URI, settings.MONGO_DB, settings.MONGO_COLLECTION)
+        self.mongo = MongoDBManager(
+            settings.mongo_uri, settings.mongo_db, settings.mongo_collection
+        )
         self.mysql = MySQLManager(
-            host=settings.MYSQL_HOST,
-            port=settings.MYSQL_PORT,
-            user=settings.MYSQL_USER,
-            password=settings.MYSQL_PASSWORD,
-            database=settings.MYSQL_DATABASE
+            host=settings.mysql_host,
+            port=settings.mysql_port,
+            user=settings.mysql_user,
+            password=settings.mysql_password,
+            database=settings.mysql_database,
         )
 
     async def init(self):

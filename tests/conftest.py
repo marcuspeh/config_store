@@ -43,17 +43,27 @@ class MockMySQLManager:
         pass
 
 
-# Create and install the mock db module BEFORE any other imports
+# Create and install the mock db module BEFORE any other imports.
+# Both the old (`db.*`) and new (`app.db.*`) module paths are stubbed so
+# tests can import the app modules under test without dragging in real Tortoise.
 mock_db_module = MagicMock()
 mock_db_module.MongoDBManager = MockMongoDBManager
 mock_db_module.MySQLManager = MockMySQLManager
 mock_db_module.models = MagicMock()
 
-# Pre-load mock db modules to prevent broken Tortoise model from loading
+# Legacy module paths (kept for any stragglers).
 sys.modules['db'] = mock_db_module
 sys.modules['db.models'] = mock_db_module.models
 sys.modules['db.mongodb_manager'] = mock_db_module
 sys.modules['db.mysql_manager'] = mock_db_module
+
+# Current module paths used by app.core.config_manager and app.db.mysql_manager.
+# (Settings moved to app.config.settings — not stubbed here because nothing
+# imports it during test collection.)
+sys.modules['app.db'] = mock_db_module
+sys.modules['app.db.models'] = mock_db_module.models
+sys.modules['app.db.mongodb_manager'] = mock_db_module
+sys.modules['app.db.mysql_manager'] = mock_db_module
 
 
 @pytest.fixture

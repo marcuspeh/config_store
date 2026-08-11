@@ -2,7 +2,7 @@
 import pytest
 from pydantic import ValidationError
 
-from models import ConfigResponse, CacheStats, HealthResponse
+from app.core.models import ConfigResponse, CacheStats, HealthResponse
 
 
 class TestConfigResponse:

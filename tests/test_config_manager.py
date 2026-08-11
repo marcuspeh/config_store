@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import patch
 
-from config_manager import ConfigManager
-from models import CacheStats
+from app.core.config_manager import ConfigManager
+from app.core.models import CacheStats
 
 
 class TestConfigManager:
@@ -12,8 +12,8 @@ class TestConfigManager:
     @pytest.fixture
     def config_manager(self, mock_mongo_manager, mock_mysql_manager):
         """Create a ConfigManager with mocked dependencies."""
-        with patch("config_manager.MongoDBManager", return_value=mock_mongo_manager):
-            with patch("config_manager.MySQLManager", return_value=mock_mysql_manager):
+        with patch("app.core.config_manager.MongoDBManager", return_value=mock_mongo_manager):
+            with patch("app.core.config_manager.MySQLManager", return_value=mock_mysql_manager):
                 manager = ConfigManager()
                 yield manager
 

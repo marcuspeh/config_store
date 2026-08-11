@@ -1,0 +1,1 @@
+"""Core domain: models and the ConfigManager. Settings live in app.config."""

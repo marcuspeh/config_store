@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient, ASGITransport
 
-from main import app
-from models import CacheStats
+from app.main import app
+from app.core.models import CacheStats
 
 
 class TestHealthEndpoint:
@@ -15,7 +15,7 @@ class TestHealthEndpoint:
         """Test /health returns healthy status."""
         mock_stats = CacheStats(projects_loaded=5, cache_keys_total=100)
 
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.get_stats = AsyncMock(return_value=mock_stats)
 
             transport = ASGITransport(app=app)
@@ -33,7 +33,7 @@ class TestHealthEndpoint:
         """Test /health with empty cache."""
         mock_stats = CacheStats(projects_loaded=0, cache_keys_total=0)
 
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.get_stats = AsyncMock(return_value=mock_stats)
 
             transport = ASGITransport(app=app)
@@ -52,7 +52,7 @@ class TestConfigEndpoint:
     @pytest.mark.asyncio
     async def test_get_config_success(self):
         """Test successful config retrieval."""
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.get_config = AsyncMock(return_value="postgres://localhost/db")
 
             transport = ASGITransport(app=app)
@@ -68,7 +68,7 @@ class TestConfigEndpoint:
     @pytest.mark.asyncio
     async def test_get_config_not_found(self):
         """Test 404 when config does not exist."""
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.get_config = AsyncMock(return_value=None)
 
             transport = ASGITransport(app=app)
@@ -82,7 +82,7 @@ class TestConfigEndpoint:
     @pytest.mark.asyncio
     async def test_get_config_special_characters_in_key(self):
         """Test config retrieval with special characters."""
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.get_config = AsyncMock(return_value='{"key": "value"}')
 
             transport = ASGITransport(app=app)
@@ -101,7 +101,7 @@ class TestRefreshEndpoint:
         """Test successful cache refresh."""
         mock_stats = CacheStats(projects_loaded=10, cache_keys_total=50)
 
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.sync_from_remote = AsyncMock()
             mock_manager.get_stats = AsyncMock(return_value=mock_stats)
 
@@ -119,7 +119,7 @@ class TestRefreshEndpoint:
         """Test that /refresh calls sync_from_remote."""
         mock_stats = CacheStats(projects_loaded=0, cache_keys_total=0)
 
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.sync_from_remote = AsyncMock()
             mock_manager.get_stats = AsyncMock(return_value=mock_stats)
 
@@ -134,7 +134,7 @@ class TestRefreshEndpoint:
         """Test that /refresh returns updated stats."""
         mock_stats_after = CacheStats(projects_loaded=5, cache_keys_total=20)
 
-        with patch("main.config_manager") as mock_manager:
+        with patch("app.main.config_manager") as mock_manager:
             mock_manager.sync_from_remote = AsyncMock()
             mock_manager.get_stats = AsyncMock(return_value=mock_stats_after)
 
