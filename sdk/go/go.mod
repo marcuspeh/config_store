@@ -1,4 +1,4 @@
-module github.com/marcuspeh/quant/go_utils/config
+module github.com/marcuspeh/config_store/sdk/go
 
 go 1.25.0
 
