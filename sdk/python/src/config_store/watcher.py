@@ -48,6 +48,41 @@ async def _close_if_possible(value: Any) -> None:
             await result
 
 
+def _coerce_config(raw: str, config_type: Any) -> Any:
+    """Parse a raw Mongo `value` string into the user's config object.
+
+    Behavior:
+    - If `raw` parses as JSON and matches `config_type`, return the parsed value.
+    - If `raw` parses as JSON but is a dict and `config_type` is constructible
+      from kwargs, build it via `config_type(**parsed)`.
+    - If `raw` does NOT parse as JSON (plain text, empty string, etc.) and
+      `config_type` is `str`, return `raw` unchanged. This lets callers store
+      literal strings in Mongo without double-JSON-encoding them.
+    - Otherwise return the parsed JSON value as-is and let `init_client` raise
+      a clear error if the shape is wrong.
+    """
+    if not raw:
+        # Empty payload — pass through; init_client decides what to do.
+        return raw
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        # Non-JSON content (plain text, empty, or otherwise unparseable).
+        # Pass it through; `init_client` can raise a clear error if the type
+        # doesn't match, but we don't force callers to double-encode strings.
+        return raw
+
+    if isinstance(parsed, config_type):
+        return parsed
+    if isinstance(parsed, dict):
+        try:
+            return config_type(**parsed)  # type: ignore[call-arg]
+        except Exception:
+            pass
+    return parsed
+
+
 @dataclass
 class _State(Generic[ClientT]):
     value: Optional[ClientT] = None
@@ -105,16 +140,7 @@ class ClientWatcher(Generic[ConfigT, ClientT]):
         use `watcher.get()` immediately after construction.
         """
         raw = await client.get(key)
-        parsed: ConfigT = json.loads(raw)
-        if not isinstance(parsed, config_type):
-            # Allow pydantic models, dataclasses, and TypedDicts to coerce via their
-            # own constructors if the JSON decoded into a plain dict.
-            try:
-                parsed = config_type(**parsed)  # type: ignore[call-arg]
-            except Exception:
-                # Fall back to the parsed value as-is; users can implement coercion
-                # in their init_client if they need something fancier.
-                pass
+        parsed = _coerce_config(raw, config_type)
 
         initial = await _maybe_await(init_client(client, parsed))
         watcher = cls(
@@ -189,12 +215,7 @@ class ClientWatcher(Generic[ConfigT, ClientT]):
         if raw == self._state.last_raw:
             return
 
-        parsed: ConfigT = json.loads(raw)
-        if not isinstance(parsed, self._config_type):
-            try:
-                parsed = self._config_type(**parsed)  # type: ignore[call-arg]
-            except Exception:
-                pass
+        parsed = _coerce_config(raw, self._config_type)
 
         new_value = await _maybe_await(self._init_client(self._client, parsed))
 

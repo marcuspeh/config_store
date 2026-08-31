@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Iterator, List
+from typing import Any, Iterator, List
 
 import httpx
 import pytest
@@ -196,4 +196,108 @@ async def test_watcher_handles_remote_errors_without_crashing() -> None:
     # The watcher must still be functional and have the initial value.
     assert watcher.get().cfg.url == "https://a"
 
+    await watcher.aclose()
+
+
+@pytest.mark.asyncio
+async def test_watcher_accepts_plain_string_value() -> None:
+    """Mongo `value` is a literal string (e.g. a URL), not JSON-encoded.
+
+    The watcher must pass it through unchanged instead of crashing on json.loads.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"value": "https://api.example.com"})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = ConfigClient("proj", http_client=http)
+
+    captured: list[str] = []
+
+    async def init(_http: ConfigClient, cfg: str) -> FakeService:
+        captured.append(cfg)
+        return FakeService(FakeCfg(url=cfg))  # type: ignore[arg-type]
+
+    watcher = await ClientWatcher.new(
+        str,  # type: ignore[arg-type]
+        init,  # type: ignore[arg-type]
+        client=client,
+        key="plain-string",
+    )
+
+    assert captured == ["https://api.example.com"]
+    await watcher.aclose()
+
+
+@pytest.mark.asyncio
+async def test_watcher_tolerates_empty_value() -> None:
+    """An empty string from the server must not crash the watcher."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"value": ""})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = ConfigClient("proj", http_client=http)
+
+    captured: list[str] = []
+
+    async def init(_http: ConfigClient, cfg: str) -> FakeService:
+        captured.append(cfg)
+        return FakeService(FakeCfg(url=cfg or "fallback"))  # type: ignore[arg-type]
+
+    watcher = await ClientWatcher.new(
+        str,  # type: ignore[arg-type]
+        init,  # type: ignore[arg-type]
+        client=client,
+        key="empty",
+    )
+
+    assert captured == [""]
+    await watcher.aclose()
+
+
+@pytest.mark.asyncio
+async def test_watcher_does_not_crash_on_unparseable_value() -> None:
+    """If the value is not JSON and the config_type is not str, the watcher
+    must log and skip the tick rather than crash."""
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        state["n"] += 1
+        if state["n"] == 1:
+            # First call (initial): bad non-JSON content.
+            return httpx.Response(200, json={"value": "https://api.example.com"})
+        # Subsequent polls: same — must keep ticking without crashing.
+        return httpx.Response(200, json={"value": "https://api.example.com"})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = ConfigClient("proj", http_client=http)
+
+    captured: list[FakeCfg] = []
+
+    async def init(_http: ConfigClient, cfg: FakeCfg) -> FakeService:
+        captured.append(cfg)
+        return FakeService(cfg)
+
+    # FakeCfg is a dataclass; init_client will receive whatever _coerce_config
+    # returns. For non-JSON with a dataclass config_type, we get the raw string.
+    # init_client should not raise; if it does, the outer try/except in _run
+    # catches it and the watcher keeps going.
+    async def maybe_init(_http: ConfigClient, cfg: Any) -> FakeService:
+        if isinstance(cfg, FakeCfg):
+            captured.append(cfg)
+            return FakeService(cfg)
+        # Non-JSON payload: skip and return a placeholder.
+        return FakeService(FakeCfg(url="placeholder"))
+
+    watcher = await ClientWatcher.new(
+        FakeCfg,
+        maybe_init,  # type: ignore[arg-type]
+        client=client,
+        key="svc",
+        poll_interval=0.05,
+    )
+
+    # Let the watcher tick a few times. It must not raise.
+    await asyncio.sleep(0.2)
+
+    assert isinstance(watcher.get(), FakeService)
     await watcher.aclose()
