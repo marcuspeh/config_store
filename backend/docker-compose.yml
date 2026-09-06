@@ -1,8 +1,8 @@
-# Standalone compose file for config_store.
+# Standalone compose file for the config_store backend.
 # Run from this directory:
 #   docker compose up --build
 #
-# - Builds only the config_store image.
+# - Builds only the backend image.
 # - Requires external MongoDB and MySQL instances.
 # - Source is bind-mounted for hot reload.
 #
@@ -42,7 +42,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       SYNC_INTERVAL: ${SYNC_INTERVAL}
-      
+
     volumes:
       - .:/app
 

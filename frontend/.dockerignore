@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+node_modules
+.next
+out
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode
+.idea
+coverage
+docs/
+README.md

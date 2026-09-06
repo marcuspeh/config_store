@@ -1,23 +1,31 @@
 # Config Store
 
-A FastAPI-based configuration store that syncs configs from MongoDB to MySQL for fast, local access.
+A FastAPI-based configuration store that syncs configs from MongoDB to MySQL for fast, local access, with a web admin UI and SDKs for consumers.
 
 ## Architecture
 
 ```
-MongoDB (Remote) ──sync──> MySQL (Local Cache) ──read──> API
+MongoDB (Remote) ──sync──> MySQL (Local Cache) ──read──> API ──< Web UI
+                                                          └─< SDKs (Python, Go)
 ```
 
 - **MongoDB**: Source of truth for all configs (remote)
 - **MySQL**: Local cache for fast reads
-- **FastAPI**: REST API for retrieving configs
+- **FastAPI** (`backend/`): REST API for retrieving and managing configs
+- **Next.js** (`frontend/`, planned): Web admin UI
+- **SDKs** (`sdk/`): Client libraries for consumers
 
-## Features
+## Repo Layout
 
-- REST API for retrieving config values
-- Automatic periodic sync from MongoDB to MySQL
-- Manual cache refresh endpoint
-- Health check endpoint with cache statistics
+```
+config_store/
+├── backend/        # FastAPI service (its own Dockerfile + docker-compose.yml)
+├── frontend/       # Next.js admin UI (placeholder)
+├── sdk/            # Python + Go client SDKs
+├── docs/           # Architecture & API docs
+├── Makefile        # Convenience commands
+└── README.md
+```
 
 ## API Endpoints
 
@@ -29,33 +37,37 @@ MongoDB (Remote) ──sync──> MySQL (Local Cache) ──read──> API
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.12+
-- uv
-- MongoDB instance
-- MySQL instance
-
-### Local Development
+### Backend
 
 ```bash
-# Install dependencies
+cd backend
+cp .env.example .env       # then edit
+docker compose up --build  # starts backend on :6002
+```
+
+Or without Docker:
+
+```bash
+cd backend
 uv sync
-
-# Run the server
-uv run uvicorn app.main:app --reload  
+uv run uvicorn app.main:app --reload
 ```
 
-### Docker
+### Frontend (planned)
 
 ```bash
-# Start all services (config_store + MySQL)
-docker compose up --build
+cd frontend
+pnpm install
+pnpm dev                   # serves on :3000, points at backend
 ```
+
+### SDKs
+
+See [`sdk/python/README.md`](sdk/python/README.md) and [`sdk/go/README.md`](sdk/go/README.md).
 
 ## Configuration
 
-Copy `.env.example` to `.env` and configure:
+Copy `backend/.env.example` to `backend/.env` and configure:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -71,8 +83,6 @@ Copy `.env.example` to `.env` and configure:
 
 ## MongoDB Config Format
 
-Configs in MongoDB should have this structure:
-
 ```json
 {
   "project": "my-project",
@@ -84,21 +94,13 @@ Configs in MongoDB should have this structure:
 ## Testing
 
 ```bash
-# Install test dependencies
-uv pip install -e ".[test]"
-
-# Run tests
-uv run pytest tests/ -v
+make test                   # runs backend pytest suite
 ```
 
 ## Linting
 
 ```bash
-# Install linting dependencies
-uv pip install -e ".[test]"
-
-# Run ruff linter
-uv run ruff check .
+make lint                   # runs ruff against backend/
 ```
 
 ## License

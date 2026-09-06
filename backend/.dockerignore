@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+.egg-info
+*.egg-info
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+*.log
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov/
+tests/
+node_modules
+docs/
+README.md
