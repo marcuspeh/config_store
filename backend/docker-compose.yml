@@ -54,8 +54,14 @@ services:
       start_period: 10s
 
     networks:
+      - config-store-net
       - spending-tracker-net
+      - algo01-net
 
 networks:
+  config-store-net:
+    external: true
   spending-tracker-net:
+    external: true
+  algo01-net:
     external: true
