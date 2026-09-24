@@ -1,40 +1,35 @@
-# syntax=docker/dockerfile:1
-# --- Dependencies ---
-FROM node:22-alpine AS deps
+# Multi-stage build: Vite -> nginx static host + reverse proxy.
+#
+# Build-time args:
+#   VITE_API_URL  Base URL the browser hits for API requests. The default
+#                 ("/api") is a relative path that nginx proxies to the
+#                 backend over the docker network.
+#
+# Runtime:
+#   - nginx serves the built SPA on container port 80.
+#   - /api/* is reverse-proxied to http://config_store:6002/* so the
+#     browser only ever talks to a single origin and no CORS
+#     configuration is needed.
+
+ARG VITE_API_URL=/api
+
+FROM node:20-alpine AS build
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml* package-lock.json* yarn.lock* ./
-RUN corepack enable && \
-    if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
-    elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-    else npm install; fi
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
 
-# --- Build ---
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN corepack enable && \
-    if [ -f pnpm-lock.yaml ]; then pnpm build; \
-    elif [ -f package-lock.json ]; then npm run build; \
-    else npm run build; fi
+COPY package.json package-lock.json* ./
+RUN npm install --no-audit --no-fund
 
-# --- Runner (production) ---
-FROM node:22-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+COPY tsconfig.json vite.config.ts tailwind.config.ts postcss.config.js index.html ./
+COPY src ./src
 
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+RUN npm run build
 
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-USER nextjs
-EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
-CMD ["node", "server.js"]
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

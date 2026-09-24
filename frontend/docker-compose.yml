@@ -1,0 +1,27 @@
+# Frontend for the config_store admin UI.
+#
+# Exposed on host port 3000. The browser talks to a single origin
+# (:3000); the bundled nginx reverse-proxies /api/* to the backend
+# over the shared `config-store-net` docker network. No CORS required.
+#
+# Run from frontend/:  docker compose up -d --build
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Relative path: requests go to /api/health, the proxy in
+        # nginx.conf forwards them to the backend.
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: config_store_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    networks:
+      - config-store-net
+
+networks:
+  config-store-net:
+    external: true
