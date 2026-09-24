@@ -1,12 +1,17 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.models import (
     ConfigListItem,
     ConfigResponse,
+    ConfigWriteRequest,
     HealthResponse,
     ProjectSummary,
+)
+from app.database.repositories.config import (
+    ConfigAlreadyExists,
+    ConfigNotFound,
 )
 from app.services.config_service import ConfigService
 
@@ -86,3 +91,68 @@ async def refresh_cache(svc: ConfigService = Depends(get_config_service)):
     except Exception as e:
         logger.error(f"Manual cache refresh failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/config/{project}/{key}",
+    response_model=ConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_config(
+    project: str,
+    key: str,
+    body: ConfigWriteRequest,
+    svc: ConfigService = Depends(get_config_service),
+):
+    """Create a new config. Returns 409 if (project, key) already exists.
+
+    Writes through to MongoDB then MySQL — see
+    `ConfigService.create_config`. Subsequent reads see the new row
+    immediately because every read goes through the repo.
+    """
+    try:
+        await svc.create_config(project, key, body.value)
+    except ConfigAlreadyExists:
+        # Surface as 409 so the frontend can render the "use Edit
+        # instead" link from the PRD.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Config already exists for project '{project}' and key '{key}'",
+        )
+    except Exception as e:
+        logger.error(f"Create config failed for {project}/{key}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+    return ConfigResponse(project=project, key=key, value=body.value)
+
+
+@router.put("/config/{project}/{key}", response_model=ConfigResponse)
+async def update_config(
+    project: str,
+    key: str,
+    body: ConfigWriteRequest,
+    svc: ConfigService = Depends(get_config_service),
+):
+    """Update an existing config. Returns 404 if (project, key) is missing.
+
+    Does not upsert — the frontend's create flow is responsible for
+    POST, this endpoint is strictly for the edit flow.
+    """
+    try:
+        await svc.update_config(project, key, body.value)
+    except ConfigNotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Config not found for project '{project}' and key '{key}'",
+        )
+    except Exception as e:
+        logger.error(f"Update config failed for {project}/{key}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+    return ConfigResponse(project=project, key=key, value=body.value)

@@ -5,6 +5,10 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.core.models import CacheStats
+from app.database.repositories.config import (
+    ConfigAlreadyExists,
+    ConfigNotFound,
+)
 
 
 class TestHealthEndpoint:
@@ -219,3 +223,111 @@ class TestProjectConfigsEndpoint:
 
         assert response.status_code == 200
         assert response.json() == []
+
+
+class TestCreateConfigEndpoint:
+    """Tests for POST /config/{project}/{key}."""
+
+    @pytest.mark.asyncio
+    async def test_create_success_returns_201(self):
+        """Successful create returns 201 with the new ConfigResponse."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.create_config = AsyncMock()
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/config/my-project/new_key",
+                    json={"value": "hello"},
+                )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body == {
+            "project": "my-project",
+            "key": "new_key",
+            "value": "hello",
+        }
+        mock_manager.create_config.assert_awaited_once_with(
+            "my-project", "new_key", "hello"
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_duplicate_returns_409(self):
+        """Duplicate (project, key) returns 409 Conflict."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.create_config = AsyncMock(
+                side_effect=ConfigAlreadyExists("dup")
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/config/my-project/existing_key",
+                    json={"value": "x"},
+                )
+
+        assert response.status_code == 409
+        assert "already exists" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_create_missing_value_returns_422(self):
+        """Empty body (no `value` field) is rejected by Pydantic with 422."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.create_config = AsyncMock()
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.post(
+                    "/config/my-project/k",
+                    json={},
+                )
+
+        assert response.status_code == 422
+        mock_manager.create_config.assert_not_called()
+
+
+class TestUpdateConfigEndpoint:
+    """Tests for PUT /config/{project}/{key}."""
+
+    @pytest.mark.asyncio
+    async def test_update_success_returns_200(self):
+        """Successful update returns 200 with the new ConfigResponse."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.update_config = AsyncMock()
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.put(
+                    "/config/my-project/db_url",
+                    json={"value": "postgres://new-host/db"},
+                )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {
+            "project": "my-project",
+            "key": "db_url",
+            "value": "postgres://new-host/db",
+        }
+        mock_manager.update_config.assert_awaited_once_with(
+            "my-project", "db_url", "postgres://new-host/db"
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_missing_returns_404(self):
+        """Updating a non-existent config returns 404 (no upsert)."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.update_config = AsyncMock(
+                side_effect=ConfigNotFound("missing")
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.put(
+                    "/config/my-project/missing_key",
+                    json={"value": "x"},
+                )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()

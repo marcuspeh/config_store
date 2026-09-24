@@ -82,3 +82,35 @@ class ConfigRepository:
             .values("config_key", "value")
         )
         return [(row["config_key"], row["value"]) for row in rows]
+
+    async def create(self, project: str, key: str, value: str) -> None:
+        """Insert a new row. Raises ConfigAlreadyExists if the key is taken.
+
+        Explicit check via `get_or_none` rather than catching the
+        IntegrityError so the HTTP layer can render a clean 409.
+        """
+        existing = await ConfigModel.get_or_none(project=project, config_key=key)
+        if existing is not None:
+            raise ConfigAlreadyExists(
+                f"Config already exists for project '{project}' and key '{key}'"
+            )
+        await ConfigModel.create(project=project, config_key=key, value=value)
+
+    async def update(self, project: str, key: str, value: str) -> None:
+        """Update an existing row. Raises ConfigNotFound if missing."""
+        existing = await ConfigModel.get_or_none(project=project, config_key=key)
+        if existing is None:
+            raise ConfigNotFound(
+                f"Config not found for project '{project}' and key '{key}'"
+            )
+        if existing.value != value:
+            existing.value = value
+            await existing.save()
+
+
+class ConfigAlreadyExists(Exception):
+    """Raised by ConfigRepository.create when (project, key) already exists."""
+
+
+class ConfigNotFound(Exception):
+    """Raised by ConfigRepository.update when (project, key) does not exist."""

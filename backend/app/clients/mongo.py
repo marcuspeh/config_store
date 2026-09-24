@@ -28,6 +28,35 @@ class MongoClient:
             raise
         return configs
 
+    async def upsert_config(self, project: str, key: str, value: str) -> None:
+        """Upsert a single (project, key, value) document in MongoDB.
+
+        Mongo is the source of truth — every write must land here so
+        the next `sync_from_remote` doesn't wipe the corresponding
+        MySQL row via `delete_stale`.
+        """
+        try:
+            await self._collection.update_one(
+                {"project": project, "key": key},
+                {"$set": {"project": project, "key": key, "value": value}},
+                upsert=True,
+            )
+        except Exception as e:
+            logger.error(f"Failed to upsert config in MongoDB: {e}")
+            raise
+
+    async def delete_config(self, project: str, key: str) -> None:
+        """Remove a (project, key) document from MongoDB.
+
+        No-op if it doesn't exist — mirrors the upsert's tolerance so
+        callers can use it idempotently.
+        """
+        try:
+            await self._collection.delete_one({"project": project, "key": key})
+        except Exception as e:
+            logger.error(f"Failed to delete config from MongoDB: {e}")
+            raise
+
     async def close(self) -> None:
         """Close the MongoDB connection."""
         self._client.close()

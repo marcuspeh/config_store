@@ -22,3 +22,11 @@ class ConfigListItem(BaseModel):
     """One row in the GET /projects/{project}/configs response."""
     config_key: str
     value: str
+
+class ConfigWriteRequest(BaseModel):
+    """Request body for POST /config/{project}/{key} and PUT /config/{project}/{key}.
+
+    `language` was intentionally removed — the PRD treats value as
+    opaque text in v1 (no language column, no parsing).
+    """
+    value: str

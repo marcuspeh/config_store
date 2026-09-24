@@ -16,6 +16,12 @@ class MockMongoClient:
     async def fetch_all_configs(self):
         return []
 
+    async def upsert_config(self, project, key, value):
+        pass
+
+    async def delete_config(self, project, key):
+        pass
+
     async def close(self):
         pass
 
@@ -41,6 +47,12 @@ class MockConfigRepository:
 
     async def list_for_project(self, project):
         return []
+
+    async def create(self, project, key, value):
+        pass
+
+    async def update(self, project, key, value):
+        pass
 
 
 # Stub the new client + repository modules so tests can construct
@@ -87,6 +99,8 @@ def mock_mongo_client():
     """Mock MongoClient."""
     mock = AsyncMock()
     mock.fetch_all_configs = AsyncMock(return_value=[])
+    mock.upsert_config = AsyncMock()
+    mock.delete_config = AsyncMock()
     mock.close = AsyncMock()
     return mock
 
@@ -101,6 +115,8 @@ def mock_config_repository():
     mock.stats = AsyncMock(return_value={"projects_loaded": 0, "cache_keys_total": 0})
     mock.distinct_projects = AsyncMock(return_value=[])
     mock.list_for_project = AsyncMock(return_value=[])
+    mock.create = AsyncMock()
+    mock.update = AsyncMock()
     return mock
 
 

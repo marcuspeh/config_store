@@ -68,6 +68,37 @@ class ConfigService:
         """Return [(config_key, value)] for every row in `project`."""
         return await self._repo.list_for_project(project)
 
+    async def create_config(
+        self, project: str, key: str, value: str
+    ) -> None:
+        """Create a new (project, key, value).
+
+        Writes through to MongoDB (source of truth) first, then to
+        MySQL. Subsequent reads see the new value immediately because
+        every read goes through the repo (no in-memory cache layer).
+        """
+        try:
+            await self._mongo.upsert_config(project, key, value)
+        except Exception:
+            # Don't poison MySQL if Mongo write failed; surface to caller.
+            raise
+        await self._repo.create(project, key, value)
+        logger.info(f"Created config {project}/{key}")
+
+    async def update_config(
+        self, project: str, key: str, value: str
+    ) -> None:
+        """Update an existing (project, key) value.
+
+        Same order as create: Mongo first, then MySQL.
+        """
+        try:
+            await self._mongo.upsert_config(project, key, value)
+        except Exception:
+            raise
+        await self._repo.update(project, key, value)
+        logger.info(f"Updated config {project}/{key}")
+
     async def close(self) -> None:
         """Close the underlying MongoDB connection."""
         await self._mongo.close()
