@@ -12,3 +12,13 @@ class CacheStats(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     stats: CacheStats
+
+class ProjectSummary(BaseModel):
+    """One row in the GET /projects response."""
+    project: str
+    config_count: int
+
+class ConfigListItem(BaseModel):
+    """One row in the GET /projects/{project}/configs response."""
+    config_key: str
+    value: str

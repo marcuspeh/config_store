@@ -2,7 +2,12 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.models import ConfigResponse, HealthResponse
+from app.core.models import (
+    ConfigListItem,
+    ConfigResponse,
+    HealthResponse,
+    ProjectSummary,
+)
 from app.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,33 @@ async def health(svc: ConfigService = Depends(get_config_service)):
         status="ok",
         stats=await svc.get_stats(),
     )
+
+
+@router.get("/projects", response_model=list[ProjectSummary])
+async def list_projects(svc: ConfigService = Depends(get_config_service)):
+    """List every distinct project with its config count.
+
+    Rows are sorted by project name ASC for stable UI ordering.
+    """
+    rows = await svc.list_projects()
+    return [ProjectSummary(project=p, config_count=c) for p, c in rows]
+
+
+@router.get(
+    "/projects/{project}/configs",
+    response_model=list[ConfigListItem],
+)
+async def list_project_configs(
+    project: str,
+    svc: ConfigService = Depends(get_config_service),
+):
+    """List every config (key + value) in the given project.
+
+    Returns an empty list — not 404 — when the project has no rows so
+    the frontend can render a stable empty state.
+    """
+    rows = await svc.list_configs(project)
+    return [ConfigListItem(config_key=k, value=v) for k, v in rows]
 
 
 @router.get("/config/{project}/{key}", response_model=ConfigResponse)

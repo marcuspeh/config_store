@@ -144,3 +144,78 @@ class TestRefreshEndpoint:
 
         assert response.json()["stats"]["projects_loaded"] == 5
         assert response.json()["stats"]["cache_keys_total"] == 20
+
+
+class TestProjectsListEndpoint:
+    """Tests for GET /projects."""
+
+    @pytest.mark.asyncio
+    async def test_list_projects_returns_sorted_rows(self):
+        """Projects are returned sorted by name ASC with config counts."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.list_projects = AsyncMock(
+                return_value=[("project-a", 2), ("project-b", 1)]
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get("/projects")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data == [
+            {"project": "project-a", "config_count": 2},
+            {"project": "project-b", "config_count": 1},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_list_projects_empty(self):
+        """Empty cache returns [] not 404."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.list_projects = AsyncMock(return_value=[])
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get("/projects")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+
+class TestProjectConfigsEndpoint:
+    """Tests for GET /projects/{project}/configs."""
+
+    @pytest.mark.asyncio
+    async def test_list_project_configs_returns_sorted_rows(self):
+        """Configs are returned sorted by config_key ASC."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.list_configs = AsyncMock(
+                return_value=[
+                    ("api_key", "secret-key-123"),
+                    ("database_url", "postgres://localhost/db"),
+                ]
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get("/projects/project-a/configs")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data == [
+            {"config_key": "api_key", "value": "secret-key-123"},
+            {"config_key": "database_url", "value": "postgres://localhost/db"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_list_project_configs_unknown_project_returns_empty(self):
+        """Unknown project returns [] not 404 (frontend renders empty state)."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.list_configs = AsyncMock(return_value=[])
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get("/projects/nonexistent/configs")
+
+        assert response.status_code == 200
+        assert response.json() == []

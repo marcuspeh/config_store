@@ -59,3 +59,26 @@ class ConfigRepository:
             "projects_loaded": len(projects),
             "cache_keys_total": len(all_configs),
         }
+
+    async def distinct_projects(self) -> List[Tuple[str, int]]:
+        """Return [(project, config_count)] for every distinct project.
+
+        Sorted by project name ASC for stable UI ordering.
+        """
+        rows = await ConfigModel.all().values("project")
+        counts: dict[str, int] = {}
+        for row in rows:
+            counts[row["project"]] = counts.get(row["project"], 0) + 1
+        return sorted(counts.items())
+
+    async def list_for_project(self, project: str) -> List[Tuple[str, str]]:
+        """Return [(config_key, value)] for every row in the given project.
+
+        Sorted by config_key ASC for stable UI ordering.
+        """
+        rows = (
+            await ConfigModel.filter(project=project)
+            .order_by("config_key")
+            .values("config_key", "value")
+        )
+        return [(row["config_key"], row["value"]) for row in rows]

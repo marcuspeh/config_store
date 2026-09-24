@@ -60,6 +60,14 @@ class ConfigService:
         stats = await self._repo.stats()
         return CacheStats(**stats)
 
+    async def list_projects(self) -> list[tuple[str, int]]:
+        """Return [(project, config_count)] for every distinct project."""
+        return await self._repo.distinct_projects()
+
+    async def list_configs(self, project: str) -> list[tuple[str, str]]:
+        """Return [(config_key, value)] for every row in `project`."""
+        return await self._repo.list_for_project(project)
+
     async def close(self) -> None:
         """Close the underlying MongoDB connection."""
         await self._mongo.close()

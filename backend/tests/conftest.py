@@ -36,6 +36,12 @@ class MockConfigRepository:
     async def stats(self):
         return {"projects_loaded": 0, "cache_keys_total": 0}
 
+    async def distinct_projects(self):
+        return []
+
+    async def list_for_project(self, project):
+        return []
+
 
 # Stub the new client + repository modules so tests can construct
 # ConfigService without instantiating real Mongo / Tortoise.
@@ -93,6 +99,8 @@ def mock_config_repository():
     mock.delete_stale = AsyncMock()
     mock.get_value = AsyncMock(return_value=None)
     mock.stats = AsyncMock(return_value={"projects_loaded": 0, "cache_keys_total": 0})
+    mock.distinct_projects = AsyncMock(return_value=[])
+    mock.list_for_project = AsyncMock(return_value=[])
     return mock
 
 
