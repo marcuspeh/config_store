@@ -30,6 +30,7 @@ services:
         # Relative path: requests go to /api/health, the proxy in
         # nginx.conf forwards them to the backend.
         VITE_API_URL: ${VITE_API_URL:-/api}
+    image: config_store_frontend:latest
     container_name: config_store_frontend
     restart: unless-stopped
     ports:
