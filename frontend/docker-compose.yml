@@ -2,9 +2,24 @@
 #
 # Exposed on host port 3000. The browser talks to a single origin
 # (:3000); the bundled nginx reverse-proxies /api/* to the backend
-# over the shared `config-store-net` docker network. No CORS required.
+# address given by $BACKEND_UPSTREAM (default: the docker-network
+# hostname `config_store`).
 #
-# Run from frontend/:  docker compose up -d --build
+# Run from frontend/:
+#
+#   # Option A — full stack in docker (backend also running in a
+#   # container with hostname `config_store` on the config-store-net
+#   # network):
+#   docker compose up -d --build
+#
+#   # Option B — backend running directly on the host. Point the proxy
+#   # at host.docker.internal so the in-container nginx can reach the
+#   # host-side uvicorn:
+#   BACKEND_UPSTREAM=http://host.docker.internal:6002/ \
+#     docker compose up -d --build
+#
+# `host.docker.internal` works out of the box on Docker Desktop and on
+# Linux hosts started with `--add-host=host.docker.internal:host-gateway`.
 
 services:
   frontend:
@@ -19,6 +34,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:80"
+    environment:
+      # Backend address inside the container. Defaults to the docker-
+      # network hostname; override to host.docker.internal when the
+      # backend runs on the host directly.
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-http://config_store:6002/}
     networks:
       - config-store-net
 
