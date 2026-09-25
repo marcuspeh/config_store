@@ -22,7 +22,7 @@
 # Linux hosts started with `--add-host=host.docker.internal:host-gateway`.
 
 services:
-  frontend:
+  config_store_frontend:
     build:
       context: .
       dockerfile: Dockerfile
