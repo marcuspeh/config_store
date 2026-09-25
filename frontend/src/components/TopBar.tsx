@@ -1,19 +1,23 @@
 import type { ReactElement } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { useHealth } from "../hooks/queries";
+import { useHealthStatus } from "../hooks/useHealthStatus";
 import { useRefreshCache } from "../hooks/mutations";
 import { extractErrorMessage } from "../api/client";
 
-// Top bar shown on every page (per PRD §5).
+// Top bar shown on every page (PRD §5).
 //
-// - Cache stats come from `useHealth`, which polls /health every 30s.
-// - The Refresh button calls POST /refresh and invalidates all caches.
-//   On Task 5 the only invalidated cache is the projects list, but
-//   later tasks (configs, detail) will pick this up automatically.
+// Stats come from `useHealthStatus`, which:
+//   - polls /health every 30s,
+//   - keeps the last-known-good response on transient errors so the
+//     numbers don't flicker to "—",
+//   - exposes `isStale` so we can render a subtle warning pill.
+//
+// The Refresh button calls POST /refresh and invalidates all caches
+// (see `useRefreshCache`).
 export function TopBar(): ReactElement {
-  const health = useHealth();
+  const health = useHealthStatus();
   const refresh = useRefreshCache();
 
   const projects = health.data?.stats.projects_loaded ?? null;
@@ -27,6 +31,15 @@ export function TopBar(): ReactElement {
     });
   }
 
+  // Three visual modes:
+  //   1. `isError` (no data ever)  → "—" placeholders + "Offline" pill.
+  //   2. `isStale` (errored but have last-known-good) → real numbers + amber "Stale" pill.
+  //   3. Healthy → real numbers, no pill.
+  const statsText =
+    health.isInitialLoading
+      ? "Loading…"
+      : `${projects ?? "—"} projects · ${keys ?? "—"} keys`;
+
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
       <div className="flex items-center gap-3">
@@ -36,12 +49,35 @@ export function TopBar(): ReactElement {
         >
           Config Store
         </Link>
-        <span className="text-sm text-slate-500" aria-label="Cache stats">
-          <span className="font-mono">
-            {projects === null ? "—" : projects}
-          </span>{" "}
-          projects ·{" "}
-          <span className="font-mono">{keys === null ? "—" : keys}</span> keys
+        <span
+          className={`flex items-center gap-1.5 text-sm ${
+            health.isError ? "text-slate-400" : "text-slate-500"
+          }`}
+          aria-label="Cache stats"
+          title={
+            health.lastUpdatedAt
+              ? `Last updated ${new Date(health.lastUpdatedAt).toLocaleTimeString()}`
+              : "Never updated"
+          }
+        >
+          <span>{statsText}</span>
+          {health.isError ? (
+            <span
+              className="inline-flex items-center gap-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-700"
+              title="Health endpoint unreachable"
+            >
+              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              Offline
+            </span>
+          ) : health.isStale ? (
+            <span
+              className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
+              title="Using last-known-good stats — latest /health fetch failed"
+            >
+              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              Stale
+            </span>
+          ) : null}
         </span>
       </div>
 

@@ -53,5 +53,10 @@ export function useHealth(): UseQueryResult<HealthResponse> {
     queryKey: queryKeys.health(),
     queryFn: getHealth,
     refetchInterval: 30_000,
+    // Don't surface a transient blip to the user — the top-bar will
+    // keep showing the last-known-good values until we cross this
+    // threshold.
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 10_000),
   });
 }
