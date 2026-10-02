@@ -57,8 +57,11 @@ services:
       - config-store-net
       - spending-tracker-net
       - algo01-net
+      - logging-net
 
 networks:
+  logging-net:
+    external: true
   config-store-net:
     external: true
   spending-tracker-net:
