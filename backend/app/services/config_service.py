@@ -4,7 +4,7 @@ from typing import Optional
 from app.clients.mongo import MongoClient
 from app.config.settings import Settings, get_settings
 from app.core.models import CacheStats
-from app.database.repositories.config import ConfigRepository
+from app.database.repositories.config import ConfigNotFound, ConfigRepository
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,26 @@ class ConfigService:
             raise
         await self._repo.update(project, key, value)
         logger.info(f"Updated config {project}/{key}")
+
+    async def delete_config(self, project: str, key: str) -> bool:
+        """Delete a (project, key) config.
+
+        Mongo first (source of truth), then MySQL cache. Raises
+        ConfigNotFound if the row didn't exist so the HTTP layer can
+        return 404. Returns True on a successful delete.
+        """
+        existing = await self._repo.get_value(project, key)
+        if existing is None:
+            raise ConfigNotFound(
+                f"Config not found for project '{project}' and key '{key}'"
+            )
+        try:
+            await self._mongo.delete_config(project, key)
+        except Exception:
+            raise
+        deleted = await self._repo.delete(project, key)
+        logger.info(f"Deleted config {project}/{key} (cache_hit={deleted})")
+        return deleted
 
     async def close(self) -> None:
         """Close the underlying MongoDB connection."""

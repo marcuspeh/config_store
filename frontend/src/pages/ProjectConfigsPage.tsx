@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useProjectConfigs } from "../hooks/queries";
+import { useDeleteConfig } from "../hooks/mutations";
 import type { ConfigListItem } from "../api/types";
 import { extractErrorMessage } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
@@ -43,6 +45,9 @@ export function ProjectConfigsPage(): ReactElement {
   const { data, isPending, isError, error, refetch } =
     useProjectConfigs(project);
 
+  const remove = useDeleteConfig();
+  const [pendingDeleteKey, setPendingDeleteKey] = useState<string | null>(null);
+
   // Default sort: config_key ASC per PRD §6.2.
   const [sortColumn, setSortColumn] = useState<string | null>("config_key");
   const [sortDir, setSortDir] = useState<SortDir | null>("asc");
@@ -55,6 +60,32 @@ export function ProjectConfigsPage(): ReactElement {
     const next = nextDir(sortColumn, sortDir, column);
     setSortColumn(next.column);
     setSortDir(next.dir);
+  }
+
+  function handleRowDelete(rowKey: string) {
+    if (
+      !window.confirm(
+        `Delete "${rowKey}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setPendingDeleteKey(rowKey);
+    remove.mutate(
+      { project, key: rowKey },
+      {
+        onSuccess: () => {
+          toast.success(`Deleted ${rowKey}`);
+          setPendingDeleteKey(null);
+        },
+        onError: (err) => {
+          setPendingDeleteKey(null);
+          toast.error(
+            `Delete failed: ${extractErrorMessage(err)}`,
+          );
+        },
+      },
+    );
   }
 
   return (
@@ -166,6 +197,16 @@ export function ProjectConfigsPage(): ReactElement {
                         <Pencil className="h-3 w-3" aria-hidden="true" />
                         Edit
                       </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleRowDelete(row.config_key)}
+                        disabled={pendingDeleteKey === row.config_key}
+                        aria-label={`Delete ${row.config_key}`}
+                        className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-red-50 hover:border-red-200 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      >
+                        <Trash2 className="h-3 w-3" aria-hidden="true" />
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

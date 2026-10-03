@@ -1,13 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Link, useParams } from "react-router-dom";
-import { Pencil } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { useConfig } from "../hooks/queries";
+import { useDeleteConfig } from "../hooks/mutations";
 import { extractErrorMessage } from "../api/client";
 import { Breadcrumb } from "../components/Breadcrumb";
 import { MonacoEditor } from "../components/MonacoEditor";
 import { CopyButton } from "../components/CopyButton";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { detectLanguage } from "../utils/detectLanguage";
 
 // §6.3 Config Detail Page. Read-only Monaco view + Edit button + Copy
@@ -18,15 +21,45 @@ export function ConfigDetailPage(): ReactElement {
     project: string;
     key: string;
   }>();
+  const navigate = useNavigate();
   const { data, isPending, isError, error, refetch } = useConfig(
     project,
     key,
   );
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const remove = useDeleteConfig();
+
   const language = useMemo(
     () => (data ? detectLanguage(data.value) : "plaintext"),
     [data],
   );
+
+  function handleConfirmDelete() {
+    remove.mutate(
+      { project, key },
+      {
+        onSuccess: () => {
+          toast.success("Deleted");
+          setConfirmOpen(false);
+          navigate(`/projects/${encodeURIComponent(project)}`);
+        },
+        onError: (err) => {
+          // 404 just means someone else deleted it first; navigate
+          // back to the project list anyway so the user isn't stuck
+          // on a half-deleted view.
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 404) {
+            toast.success("Already deleted");
+            setConfirmOpen(false);
+            navigate(`/projects/${encodeURIComponent(project)}`);
+            return;
+          }
+          toast.error(`Delete failed: ${extractErrorMessage(err)}`);
+        },
+      },
+    );
+  }
 
   return (
     <section aria-labelledby="config-detail-heading">
@@ -38,13 +71,23 @@ export function ConfigDetailPage(): ReactElement {
         ]}
         actions={
           data ? (
-            <Link
-              to={`/projects/${encodeURIComponent(project)}/${encodeURIComponent(key)}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              Edit
-            </Link>
+            <>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </button>
+              <Link
+                to={`/projects/${encodeURIComponent(project)}/${encodeURIComponent(key)}/edit`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                Edit
+              </Link>
+            </>
           ) : null
         }
       />
@@ -103,6 +146,27 @@ export function ConfigDetailPage(): ReactElement {
           <Footer value={data.value} />
         </>
       ) : null}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete this config?"
+        description={
+          <>
+            This will permanently delete{" "}
+            <span className="font-mono font-medium text-slate-900">
+              {key}
+            </span>{" "}
+            from <span className="font-mono">{project}</span>. This action
+            cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        destructive
+        pending={remove.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </section>
   );
 }

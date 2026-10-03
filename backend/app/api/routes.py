@@ -129,6 +129,38 @@ async def create_config(
     return ConfigResponse(project=project, key=key, value=body.value)
 
 
+@router.delete(
+    "/config/{project}/{key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_config(
+    project: str,
+    key: str,
+    svc: ConfigService = Depends(get_config_service),
+):
+    """Delete a (project, key) config.
+
+    Mongo is the source of truth — we delete from Mongo then MySQL.
+    Returns 204 on success, 404 if the config didn't exist (so the
+    frontend can distinguish "already gone" from a real delete).
+    """
+    try:
+        await svc.delete_config(project, key)
+    except ConfigNotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Config not found for project '{project}' and key '{key}'",
+        )
+    except Exception as e:
+        logger.error(f"Delete config failed for {project}/{key}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    # 204 — no body.
+    return None
+
+
 @router.put("/config/{project}/{key}", response_model=ConfigResponse)
 async def update_config(
     project: str,

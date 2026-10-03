@@ -61,6 +61,16 @@ export async function updateConfig(
   return res.data;
 }
 
+export async function deleteConfig(
+  project: string,
+  key: string,
+): Promise<void> {
+  // 204 No Content — we only care about the status, not the payload.
+  await apiClient.delete<void>(
+    `/config/${encodeURIComponent(project)}/${encodeURIComponent(key)}`,
+  );
+}
+
 export async function refreshCache(): Promise<HealthResponse> {
   const res = await apiClient.post<HealthResponse>("/refresh");
   return res.data;

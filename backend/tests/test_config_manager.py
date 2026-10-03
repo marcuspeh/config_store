@@ -3,6 +3,7 @@ import pytest
 from unittest.mock import patch
 
 from app.core.models import CacheStats
+from app.database.repositories.config import ConfigNotFound
 from app.services.config_service import ConfigService
 
 
@@ -117,3 +118,46 @@ class TestConfigService:
         await config_service.close()
 
         mock_mongo_client.close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_delete_config_removes_from_mongo_then_repo(
+        self, config_service, mock_mongo_client, mock_config_repository
+    ):
+        """Successful delete hits Mongo first, then the repo cache."""
+        mock_config_repository.get_value.return_value = "stale"
+
+        deleted = await config_service.delete_config("my-project", "api_key")
+
+        assert deleted is True
+        mock_mongo_client.delete_config.assert_awaited_once_with(
+            "my-project", "api_key"
+        )
+        mock_config_repository.delete.assert_awaited_once_with(
+            "my-project", "api_key"
+        )
+
+    @pytest.mark.asyncio
+    async def test_delete_config_raises_when_missing(
+        self, config_service, mock_mongo_client, mock_config_repository
+    ):
+        """Missing config raises ConfigNotFound; Mongo is not touched."""
+        mock_config_repository.get_value.return_value = None
+
+        with pytest.raises(ConfigNotFound):
+            await config_service.delete_config("my-project", "missing")
+
+        mock_mongo_client.delete_config.assert_not_called()
+        mock_config_repository.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_delete_config_propagates_mongo_failure(
+        self, config_service, mock_mongo_client, mock_config_repository
+    ):
+        """If Mongo delete raises, repo delete must not run."""
+        mock_config_repository.get_value.return_value = "stale"
+        mock_mongo_client.delete_config.side_effect = RuntimeError("mongo down")
+
+        with pytest.raises(RuntimeError):
+            await config_service.delete_config("my-project", "api_key")
+
+        mock_config_repository.delete.assert_not_called()

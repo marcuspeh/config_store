@@ -107,10 +107,22 @@ class ConfigRepository:
             existing.value = value
             await existing.save()
 
+    async def delete(self, project: str, key: str) -> bool:
+        """Delete a row. Returns True if a row was removed, False if it didn't exist.
+
+        Distinguishing the two removed-row guards lets the HTTP layer
+        map "already gone" to 404 and "found + deleted" to 204.
+        """
+        existing = await ConfigModel.get_or_none(project=project, config_key=key)
+        if existing is None:
+            return False
+        await existing.delete()
+        return True
+
 
 class ConfigAlreadyExists(Exception):
     """Raised by ConfigRepository.create when (project, key) already exists."""
 
 
 class ConfigNotFound(Exception):
-    """Raised by ConfigRepository.update when (project, key) does not exist."""
+    """Raised by ConfigRepository.update / delete when (project, key) does not exist."""

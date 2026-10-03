@@ -331,3 +331,42 @@ class TestUpdateConfigEndpoint:
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+
+class TestDeleteConfigEndpoint:
+    """Tests for DELETE /config/{project}/{key}."""
+
+    @pytest.mark.asyncio
+    async def test_delete_success_returns_204(self):
+        """Successful delete returns 204 with an empty payload."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.delete_config = AsyncMock(return_value=True)
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(
+                    "/config/my-project/old_key"
+                )
+
+        assert response.status_code == 204
+        assert response.content == b""
+        mock_manager.delete_config.assert_awaited_once_with(
+            "my-project", "old_key"
+        )
+
+    @pytest.mark.asyncio
+    async def test_delete_missing_returns_404(self):
+        """Deleting a missing config returns 404."""
+        with patch("app.main.config_service") as mock_manager:
+            mock_manager.delete_config = AsyncMock(
+                side_effect=ConfigNotFound("missing")
+            )
+
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(
+                    "/config/my-project/ghost"
+                )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()

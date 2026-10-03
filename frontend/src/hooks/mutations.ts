@@ -1,5 +1,10 @@
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { createConfig, refreshCache, updateConfig } from "../api/configs";
+import {
+  createConfig,
+  deleteConfig,
+  refreshCache,
+  updateConfig,
+} from "../api/configs";
 import { queryKeys } from "./queryKeys";
 import type { ConfigResponse, ConfigWriteRequest } from "../api/types";
 
@@ -53,6 +58,31 @@ export function useUpdateConfig(): UseMutationResult<
       // The list-row preview may also have changed (different value
       // preview), so drop the list cache too.
       void qc.invalidateQueries({ queryKey: queryKeys.configs(project) });
+    },
+  });
+}
+
+interface DeleteConfigArgs {
+  project: string;
+  key: string;
+}
+
+// Deletes a single config and drops every cache that could still
+// surface it: the single-config entry, the project list, and the
+// projects summary (config_count_removed affects the row totals).
+export function useDeleteConfig(): UseMutationResult<
+  void,
+  Error,
+  DeleteConfigArgs
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ project, key }: DeleteConfigArgs) =>
+      deleteConfig(project, key),
+    onSuccess: (_data, { project, key }) => {
+      qc.removeQueries({ queryKey: queryKeys.config(project, key) });
+      void qc.invalidateQueries({ queryKey: queryKeys.configs(project) });
+      void qc.invalidateQueries({ queryKey: queryKeys.projects() });
     },
   });
 }

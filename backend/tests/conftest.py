@@ -117,6 +117,7 @@ def mock_config_repository():
     mock.list_for_project = AsyncMock(return_value=[])
     mock.create = AsyncMock()
     mock.update = AsyncMock()
+    mock.delete = AsyncMock(return_value=True)
     return mock
 
 
