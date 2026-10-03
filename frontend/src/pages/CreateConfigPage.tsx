@@ -10,6 +10,7 @@ import { extractErrorMessage } from "../api/client";
 import { Breadcrumb } from "../components/Breadcrumb";
 import { MonacoEditor } from "../components/MonacoEditor";
 import { ErrorBanner } from "../components/ErrorBanner";
+import { ProjectCombobox } from "../components/ProjectCombobox";
 import { detectLanguage } from "../utils/detectLanguage";
 import {
   validateKey,
@@ -184,25 +185,15 @@ export function CreateConfigPage(): ReactElement {
               className="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-1.5 font-mono text-sm text-slate-700 focus:outline-none"
             />
           ) : (
-            <>
-              <input
-                id="project"
-                type="text"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, project: true }))}
-                list="existing-projects"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="my-project"
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 font-mono text-sm focus:border-slate-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              />
-              <datalist id="existing-projects">
-                {(projects.data ?? []).map((p) => (
-                  <option key={p.project} value={p.project} />
-                ))}
-              </datalist>
-            </>
+            <ProjectCombobox
+              id="project"
+              value={project}
+              onChange={setProject}
+              onBlur={() => setTouched((t) => ({ ...t, project: true }))}
+              options={(projects.data ?? []).map((p) => p.project)}
+              isLoading={projects.isPending}
+              placeholder="my-project"
+            />
           )}
         </Field>
 
