@@ -1,12 +1,12 @@
-import logging
 from typing import Optional
 
 from app.clients.mongo import MongoClient
 from app.config.settings import Settings, get_settings
 from app.core.models import CacheStats
 from app.database.repositories.config import ConfigNotFound, ConfigRepository
+from app.logging_setup import client
 
-logger = logging.getLogger(__name__)
+log = client()
 
 
 class ConfigService:
@@ -24,8 +24,8 @@ class ConfigService:
 
     async def sync_from_remote(self) -> None:
         """Pull all configs from MongoDB and refresh the MySQL cache."""
+        log.info("sync starting source=mongo target=mysql")
         try:
-            logger.info("Starting synchronization from MongoDB to MySQL...")
             mongo_configs = await self._mongo.fetch_all_configs()
 
             seen: set[tuple[str, str]] = set()
@@ -47,78 +47,68 @@ class ConfigService:
 
             await self._repo.delete_stale(current_keys)
 
-            logger.info("Synchronization complete.")
+            log.info(
+                "sync complete fetched=%d upserted=%d", len(mongo_configs), len(upsert_data),
+            )
         except Exception as e:
-            logger.error(f"Synchronization failed: {e}")
+            log.error("sync failed error=%s", e)
+            raise
 
     async def get_config(self, project: str, key: str) -> Optional[str]:
-        """Retrieve a config value from the local MySQL cache."""
         return await self._repo.get_value(project, key)
 
     async def get_stats(self) -> CacheStats:
-        """Return cache statistics from MySQL."""
         stats = await self._repo.stats()
         return CacheStats(**stats)
 
     async def list_projects(self) -> list[tuple[str, int]]:
-        """Return [(project, config_count)] for every distinct project."""
         return await self._repo.distinct_projects()
 
     async def list_configs(self, project: str) -> list[tuple[str, str]]:
-        """Return [(config_key, value)] for every row in `project`."""
         return await self._repo.list_for_project(project)
 
     async def create_config(
         self, project: str, key: str, value: str
     ) -> None:
-        """Create a new (project, key, value).
-
-        Writes through to MongoDB (source of truth) first, then to
-        MySQL. Subsequent reads see the new value immediately because
-        every read goes through the repo (no in-memory cache layer).
-        """
+        """Create a new (project, key, value). Mongo first, then MySQL."""
+        log.info("create config project=%s key=%s", project, key)
         try:
             await self._mongo.upsert_config(project, key, value)
-        except Exception:
-            # Don't poison MySQL if Mongo write failed; surface to caller.
+        except Exception as e:
+            log.error("create config mongo failed project=%s key=%s error=%s", project, key, e)
             raise
         await self._repo.create(project, key, value)
-        logger.info(f"Created config {project}/{key}")
+        log.info("create config persisted project=%s key=%s", project, key)
 
     async def update_config(
         self, project: str, key: str, value: str
     ) -> None:
-        """Update an existing (project, key) value.
-
-        Same order as create: Mongo first, then MySQL.
-        """
+        """Update an existing (project, key) value. Mongo first, then MySQL."""
+        log.info("update config project=%s key=%s", project, key)
         try:
             await self._mongo.upsert_config(project, key, value)
-        except Exception:
+        except Exception as e:
+            log.error("update config mongo failed project=%s key=%s error=%s", project, key, e)
             raise
         await self._repo.update(project, key, value)
-        logger.info(f"Updated config {project}/{key}")
+        log.info("update config persisted project=%s key=%s", project, key)
 
     async def delete_config(self, project: str, key: str) -> bool:
-        """Delete a (project, key) config.
-
-        Mongo first (source of truth), then MySQL cache. Raises
-        ConfigNotFound if the row didn't exist so the HTTP layer can
-        return 404. Returns True on a successful delete.
-        """
+        """Delete a (project, key) config. Mongo first, then MySQL cache."""
         existing = await self._repo.get_value(project, key)
         if existing is None:
+            log.info("delete config missing project=%s key=%s", project, key)
             raise ConfigNotFound(
                 f"Config not found for project '{project}' and key '{key}'"
             )
         try:
             await self._mongo.delete_config(project, key)
-        except Exception:
+        except Exception as e:
+            log.error("delete config mongo failed project=%s key=%s error=%s", project, key, e)
             raise
         deleted = await self._repo.delete(project, key)
-        logger.info(f"Deleted config {project}/{key} (cache_hit={deleted})")
+        log.info("delete config persisted project=%s key=%s cache_hit=%s", project, key, deleted)
         return deleted
 
     async def close(self) -> None:
-        """Close the underlying MongoDB connection."""
         await self._mongo.close()

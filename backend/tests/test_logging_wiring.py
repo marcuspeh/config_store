@@ -16,7 +16,9 @@ from starlette.testclient import TestClient
 
 from app import logging_setup as logging_pkg
 from app.config import settings as settings_pkg
+from app.logging_setup import client as get_log_client
 from app.logging_setup import setup_logging
+from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.correlation import CorrelationIdMiddleware
 
 
@@ -43,11 +45,11 @@ def test_setup_logging_constructs_client_when_enabled(monkeypatch):
 
     settings_pkg.get_settings.cache_clear()
 
-    logging_pkg._client = None
+    logging_pkg._client_instance = None
     try:
-        client = logging_pkg.setup_logging()
-        assert client is not None
-        assert client.project == "config_store"
+        c = logging_pkg.setup_logging()
+        assert c is not None
+        assert c.project == "config_store"
     finally:
         logging_pkg.shutdown_logging()
 
@@ -106,7 +108,52 @@ def test_setup_logging_noop_when_sdk_unavailable(monkeypatch):
     root = logging.getLogger()
     for h in list(root.handlers):
         root.removeHandler(h)
-    client = setup_logging()
+    result = setup_logging()
 
-    assert client is None
+    assert result is None
     assert any(type(h).__name__ == "StreamHandler" for h in root.handlers)
+
+
+def test_client_accessor_returns_null_when_disabled():
+    log = get_log_client()
+    log.info("hi")
+    log.error("oops")
+    assert hasattr(log, "project")
+
+
+def test_access_log_middleware_invokes_client_info_and_error(monkeypatch):
+    """Successful request logs info; 5xx response logs error."""
+
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def info(self, fmt: str, *args):
+            self.calls.append(("info", fmt))
+
+        def error(self, fmt: str, *args):
+            self.calls.append(("error", fmt))
+
+    fake = FakeClient()
+    monkeypatch.setattr("app.middleware.access_log.client", lambda: fake)
+
+    async def ok(request: Request) -> PlainTextResponse:
+        return PlainTextResponse("ok")
+
+    async def boom(request: Request) -> PlainTextResponse:
+        return PlainTextResponse("boom", status_code=500)
+
+    app = Starlette(
+        middleware=[Middleware(AccessLogMiddleware)],
+        routes=[Route("/ok", ok), Route("/boom", boom)],
+    )
+    test_client = TestClient(app)
+    test_client.get("/ok")
+    test_client.get("/boom")
+
+    levels = [c[0] for c in fake.calls]
+    assert "info" in levels
+    assert "error" in levels
+    messages = " ".join(c[1] for c in fake.calls)
+    assert "request completed" in messages
+    assert "request failed" in messages

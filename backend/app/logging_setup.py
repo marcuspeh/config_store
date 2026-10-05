@@ -1,18 +1,16 @@
-"""Initialise the logging-sdk (logging_system SDK) for this service.
+"""Logging setup and accessor for the logging-system SDK.
 
-Wires the stdlib ``logging`` root logger through
-:class:`loggingsdk.LoggingHandler` so any ``logger.info(...)`` call
-already in the codebase routes to the centralised logging pipeline
-without modification.
+Centralised entry point for every log call in the app. Callers use the
+returned :func:`client` (a thin facade over ``loggingsdk.Client``) instead
+of stdlib ``logging.getLogger(__name__)`` so all events flow through the
+Kafka pipeline configured for this service.
 
 Two safety nets:
 
 * If the SDK can't be imported (e.g. running tests without the sibling
-  repo on the Python path), we fall back to plain stderr logging.
-* If Kafka is unreachable when the producer is constructed, we still
-  keep the handler installed — ``ConfluentProducer.produce`` is
-  non-blocking and delivery failures are reported through the SDK's
-  ``stats`` counter and stderr, never as exceptions in the call site.
+  repo on the Python path), every ``client.info(...)`` call is a no-op.
+* If Kafka is unreachable, the SDK's async queue drops the oldest and the
+  call still returns immediately.
 """
 
 from __future__ import annotations
@@ -33,24 +31,42 @@ except Exception:  # pragma: no cover - SDK unavailable
     ParseLevel = None  # type: ignore[assignment]
 
 
-_client: Optional["loggingsdk.Client"] = None
-"""The shared loggersdk.Client. ``None`` when the SDK is unavailable or
+_client_instance: Optional["loggingsdk.Client"] = None
+"""The shared loggingsdk.Client. ``None`` when the SDK is unavailable or
 ``log_disabled`` is set."""
 
 
+class _NullClient:
+    """Drop-in replacement for ``loggingsdk.Client`` when the SDK is
+    unavailable or disabled. Every method is a no-op so callers can use
+    ``client.info(...)`` unconditionally.
+    """
+
+    @property
+    def project(self) -> str:  # pragma: no cover - read for tests
+        return ""
+
+    def debug(self, *_args, **_kwargs) -> None: pass
+    def info(self, *_args, **_kwargs) -> None: pass
+    def warn(self, *_args, **_kwargs) -> None: pass
+    def error(self, *_args, **_kwargs) -> None: pass
+    def fatal(self, *_args, **_kwargs) -> None: pass
+    def close(self, *_args, **_kwargs) -> None: pass
+
+
 def setup_logging() -> Optional["loggingsdk.Client"]:
-    """Configure stdlib ``logging`` to route through the SDK.
+    """Configure stdlib ``logging`` and build the SDK client.
 
     Returns the constructed :class:`loggingsdk.Client` (or ``None`` if
     the SDK is disabled). Idempotent — calling it twice returns the
     existing client.
     """
-    global _client
+    global _client_instance
 
     settings = get_settings()
 
-    # Configure stderr first so we always have *some* output, even if
-    # the SDK can't be imported or Kafka isn't reachable yet.
+    # Stderr first so we always have *some* output, even if the SDK
+    # can't be imported or Kafka isn't reachable yet.
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.setFormatter(
         logging.Formatter(
@@ -60,8 +76,6 @@ def setup_logging() -> Optional["loggingsdk.Client"]:
 
     root = logging.getLogger()
     root.setLevel(_parse_level(settings.log_level))
-    # Drop any handlers added by `logging.basicConfig` (or by previous
-    # `setup_logging` calls in the same process — tests).
     for h in list(root.handlers):
         root.removeHandler(h)
     root.addHandler(stderr_handler)
@@ -69,10 +83,10 @@ def setup_logging() -> Optional["loggingsdk.Client"]:
     if settings.log_disabled or loggingsdk is None:
         return None
 
-    if _client is not None:
-        return _client
+    if _client_instance is not None:
+        return _client_instance
 
-    _client = Client(
+    _client_instance = Client(
         bootstrap=settings.log_kafka_brokers,
         project=settings.log_project,
         topic=settings.log_topic,
@@ -80,25 +94,29 @@ def setup_logging() -> Optional["loggingsdk.Client"]:
         flush_interval=settings.log_flush_interval,
         min_level=ParseLevel(settings.log_level.upper())[0],
     )
-    root.addHandler(LoggingHandler(_client))
-    return _client
+    root.addHandler(LoggingHandler(_client_instance))
+    return _client_instance
 
 
-def get_client() -> Optional["loggingsdk.Client"]:
-    """Return the shared SDK client (constructs one on first call)."""
-    if _client is None:
+def client():
+    """Return the shared SDK client (constructing one on first call).
+
+    Falls back to a :class:`_NullClient` when the SDK is disabled or
+    unavailable, so call sites never need to guard against ``None``.
+    """
+    if _client_instance is None:
         setup_logging()
-    return _client
+    return _client_instance if _client_instance is not None else _NullClient()
 
 
 def shutdown_logging() -> None:
     """Flush + close the SDK. Safe to call when the SDK is disabled."""
-    global _client
-    if _client is not None:
+    global _client_instance
+    if _client_instance is not None:
         try:
-            _client.close()
+            _client_instance.close()
         finally:
-            _client = None
+            _client_instance = None
 
 
 def _parse_level(name: str) -> int:

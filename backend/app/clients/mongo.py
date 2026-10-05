@@ -1,9 +1,10 @@
-import logging
 from typing import List, Dict
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
-logger = logging.getLogger(__name__)
+from app.logging_setup import client
+
+log = client()
 
 
 class MongoClient:
@@ -22,9 +23,9 @@ class MongoClient:
             )
             async for document in cursor:
                 configs.append(document)
-            logger.info(f"Fetched {len(configs)} configurations from MongoDB")
+            log.info("mongo fetched count=%d", len(configs))
         except Exception as e:
-            logger.error(f"Failed to fetch configs from MongoDB: {e}")
+            log.error("mongo fetch failed error=%s", e)
             raise
         return configs
 
@@ -41,8 +42,9 @@ class MongoClient:
                 {"$set": {"project": project, "key": key, "value": value}},
                 upsert=True,
             )
+            log.info("mongo upsert ok project=%s key=%s", project, key)
         except Exception as e:
-            logger.error(f"Failed to upsert config in MongoDB: {e}")
+            log.error("mongo upsert failed project=%s key=%s error=%s", project, key, e)
             raise
 
     async def delete_config(self, project: str, key: str) -> None:
@@ -53,8 +55,9 @@ class MongoClient:
         """
         try:
             await self._collection.delete_one({"project": project, "key": key})
+            log.info("mongo delete ok project=%s key=%s", project, key)
         except Exception as e:
-            logger.error(f"Failed to delete config from MongoDB: {e}")
+            log.error("mongo delete failed project=%s key=%s error=%s", project, key, e)
             raise
 
     async def close(self) -> None:
