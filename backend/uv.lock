@@ -425,7 +425,7 @@ wheels = [
 [[package]]
 name = "logging-sdk"
 version = "0.1.0"
-source = { git = "https://github.com/marcuspeh/logging.git?subdirectory=sdk%2Fpython&branch=main#e62f1cf9fef69b3f83f40e7948c8b94a7efa3476" }
+source = { git = "https://github.com/marcuspeh/logging.git?subdirectory=sdk%2Fpython&branch=main#71979cf483452f944dd4ead516e4c9679593d80a" }
 dependencies = [
     { name = "confluent-kafka" },
 ]

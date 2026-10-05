@@ -45,9 +45,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Config Store", lifespan=lifespan)
-# Correlation id first so the access-log middleware can pick it up.
-app.add_middleware(CorrelationIdMiddleware)
+# Correlation id is added last so it wraps the access-log middleware and
+# the generated id is already bound when the request/response logs fire.
 app.add_middleware(AccessLogMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
 app.include_router(api_router)
 
 

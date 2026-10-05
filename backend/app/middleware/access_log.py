@@ -22,7 +22,14 @@ from starlette.responses import Response
 
 from app.logging_setup import client
 
-from app.middleware.correlation import REQUEST_ID_HEADER
+try:
+    from loggingsdk import current_log_id
+except Exception:  # pragma: no cover - SDK unavailable
+    current_log_id = None  # type: ignore[assignment]
+
+
+def _request_id() -> str:
+    return current_log_id() if current_log_id is not None else "unknown"
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
@@ -32,7 +39,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         log = client()
-        request_id = request.headers.get(REQUEST_ID_HEADER) or "-"
+        request_id = _request_id()
         method = request.method
         path = request.url.path
         started = time.perf_counter()

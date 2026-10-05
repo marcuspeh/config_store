@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import re
 
 import loggingsdk
 import pytest
@@ -73,6 +74,22 @@ async def test_correlation_middleware_binds_log_id_per_request():
     request_id = response.headers.get("X-Request-ID")
     assert request_id, "response should echo the id"
     assert seen_ids == [request_id]
+
+
+@pytest.mark.asyncio
+async def test_correlation_middleware_generates_sdk_style_id():
+    async def echo(request: Request) -> PlainTextResponse:
+        return PlainTextResponse("ok")
+
+    app = Starlette(
+        middleware=[Middleware(CorrelationIdMiddleware)],
+        routes=[Route("/", echo)],
+    )
+    client = TestClient(app)
+    response = client.get("/")
+
+    request_id = response.headers.get("X-Request-ID", "")
+    assert re.fullmatch(r"\d{8}-\d{4}-[0-9a-z]{6}", request_id), request_id
 
 
 @pytest.mark.asyncio
