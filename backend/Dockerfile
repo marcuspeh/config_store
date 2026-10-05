@@ -8,9 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl is used by the compose healthcheck.
+# curl is used by the compose healthcheck. git is required by uv to
+# resolve the `logging-sdk` git dependency during `uv sync`.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast Python package management.
