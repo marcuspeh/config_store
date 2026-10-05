@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     # Periodic sync interval (seconds)
     sync_interval: int = Field(default=60)
 
+    # Logging SDK (logging_system). The project name is used as the
+    # Kafka message key, so the logging collector partitions all events
+    # for this service together.
+    log_kafka_brokers: str = Field(default="logging-kafka:9092")
+    log_topic: str = Field(default="logs")
+    log_project: str = Field(default="config-store")
+    # 0 = synchronous sends; >0 buffers on a worker thread (drop-oldest).
+    log_async_capacity: int = Field(default=4096)
+    log_flush_interval: float = Field(default=1.0)
+    # Set to a non-empty value (e.g. "0") to fully disable the SDK and
+    # fall back to stderr-only logging. Useful for tests and CI.
+    log_disabled: bool = Field(default=False)
+    # Stdlib log level for the SDK's LoggingHandler.
+    log_level: str = Field(default="INFO")
+
     @property
     def database_url(self) -> str:
         # URL-encode credentials so passwords containing @, :, /, etc. don't

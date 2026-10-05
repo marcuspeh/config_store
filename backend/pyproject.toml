@@ -24,6 +24,7 @@ dependencies = [
     "pydantic-settings",
     "python-dotenv",
     "cryptography>=49.0.0",
+    "logging-sdk",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +34,9 @@ test = [
     "httpx>=0.28.0",
     "ruff>=0.15.20",
 ]
+
+[tool.uv.sources]
+logging-sdk = { git = "https://github.com/marcuspeh/logging.git", branch = "main", subdirectory = "sdk/python" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

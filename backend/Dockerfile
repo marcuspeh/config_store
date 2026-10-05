@@ -3,7 +3,8 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_SYSTEM_PYTHON=1
+    UV_SYSTEM_PYTHON=1 \
+    UV_LINK_MODE=copy
 
 WORKDIR /app
 
@@ -15,12 +16,13 @@ RUN apt-get update \
 # Install uv for fast Python package management.
 RUN pip install uv
 
-# Install Python deps first for layer caching.
+# Install Python deps first for layer caching. `logging-sdk` is
+# resolved from its GitHub repo via [tool.uv.sources] in pyproject.toml.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 
 # Copy only this service's source tree.
-COPY . /app/
+COPY app ./app
 
 # Drop privileges.
 RUN useradd --create-home --shell /bin/bash app \

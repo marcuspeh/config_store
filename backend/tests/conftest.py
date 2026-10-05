@@ -7,6 +7,20 @@ from unittest.mock import AsyncMock, MagicMock
 # Ensure project root is in path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Also expose the sibling logging_system SDK on sys.path. In real
+# deployments this is installed via `uv sync` from the
+# [tool.uv.sources] path entry; the inline entry is a no-op when the
+# package is already importable and lets tests run in environments
+# where the install step failed (e.g. permission-denied in CI).
+_SDK_SRC = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "logging_system"
+    / "sdk"
+    / "python"
+)
+if _SDK_SRC.exists():
+    sys.path.insert(0, str(_SDK_SRC))
+
 
 # Pre-create mock classes
 class MockMongoClient:
@@ -53,6 +67,9 @@ class MockConfigRepository:
 
     async def update(self, project, key, value):
         pass
+
+    async def delete(self, project, key):
+        return False
 
 
 # Stub the new client + repository modules so tests can construct

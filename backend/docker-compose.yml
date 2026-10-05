@@ -42,6 +42,14 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       SYNC_INTERVAL: ${SYNC_INTERVAL}
+      # Logging SDK (logging_system). The brokers host is reachable
+      # via the shared `logging-net` docker network.
+      LOG_KAFKA_BROKERS: ${LOG_KAFKA_BROKERS:-logging-kafka:9092}
+      LOG_TOPIC: ${LOG_TOPIC:-logs}
+      LOG_PROJECT: ${LOG_PROJECT:-config-store}
+      LOG_ASYNC_CAPACITY: ${LOG_ASYNC_CAPACITY:-4096}
+      LOG_FLUSH_INTERVAL: ${LOG_FLUSH_INTERVAL:-1.0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
     volumes:
       - .:/app
