@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import builtins
+import contextlib
 import logging
 import re
 
@@ -18,9 +20,21 @@ from starlette.testclient import TestClient
 from app import logging_setup as logging_pkg
 from app.config import settings as settings_pkg
 from app.logging_setup import client as get_log_client
-from app.logging_setup import setup_logging
+from app.logging_setup import log_id_scope, setup_logging
 from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.correlation import CorrelationIdMiddleware
+from app.services.sync_scheduler import SyncScheduler
+
+
+class _RecordingClient:
+    def __init__(self):
+        self.calls: list[tuple[str, str]] = []
+
+    def info(self, fmt: str, *args):
+        self.calls.append(("info", fmt))
+
+    def error(self, fmt: str, *args):
+        self.calls.append(("error", fmt))
 
 
 @pytest.fixture(autouse=True)
@@ -136,6 +150,55 @@ def test_client_accessor_returns_null_when_disabled():
     log.info("hi")
     log.error("oops")
     assert hasattr(log, "project")
+
+
+def test_log_id_scope_generates_and_resets():
+    assert loggingsdk.current_log_id() == "unknown"
+
+    with log_id_scope() as log_id:
+        assert re.fullmatch(r"\d{8}-\d{4}-[0-9a-z]{6}", log_id), log_id
+        assert loggingsdk.current_log_id() == log_id
+
+    assert loggingsdk.current_log_id() == "unknown"
+
+
+def test_log_id_scope_reuses_bound_id():
+    with log_id_scope("outer-id"):
+        with log_id_scope() as inner:
+            assert inner == "outer-id"
+            assert loggingsdk.current_log_id() == "outer-id"
+
+
+def test_sync_scheduler_binds_log_id_per_iteration(monkeypatch):
+    seen: list[str] = []
+    monkeypatch.setattr(
+        "app.services.sync_scheduler.client",
+        lambda: _RecordingClient(),
+    )
+
+    class FakeService:
+        def __init__(self):
+            self.done = asyncio.Event()
+
+        async def sync_from_remote(self):
+            seen.append(loggingsdk.current_log_id())
+            if len(seen) >= 2:
+                self.done.set()
+
+    async def scenario():
+        service = FakeService()
+        scheduler = SyncScheduler(service, interval=0)
+        scheduler._task = asyncio.ensure_future(scheduler._loop())
+        await service.done.wait()
+        scheduler._task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await scheduler._task
+
+    asyncio.run(scenario())
+
+    assert len(seen) == 2
+    assert all(re.fullmatch(r"\d{8}-\d{4}-[0-9a-z]{6}", i) for i in seen), seen
+    assert seen[0] != seen[1], "each iteration should get a fresh id"
 
 
 def test_access_log_middleware_skips_health(monkeypatch):

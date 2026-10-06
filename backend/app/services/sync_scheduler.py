@@ -1,6 +1,6 @@
 import asyncio
 
-from app.logging_setup import client
+from app.logging_setup import client, log_id_scope
 from app.services.config_service import ConfigService
 
 log = client()
@@ -15,16 +15,21 @@ class SyncScheduler:
         self._task: asyncio.Task | None = None
 
     async def _loop(self) -> None:
+        # No request scope out here, so each iteration gets its own log id.
         while True:
-            log.info("periodic sync starting interval=%ds", self._interval)
-            try:
-                await self._service.sync_from_remote()
-                log.info("periodic sync ok")
-            except Exception as e:  # noqa: BLE001 — defensive long-running loop
-                log.error(
-                    "periodic sync failed error=%s",
-                    e,
+            with log_id_scope() as log_id:
+                log.info(
+                    "periodic sync starting interval=%ds log_id=%s",
+                    self._interval,
+                    log_id,
                 )
+                try:
+                    await self._service.sync_from_remote()
+                except Exception as e:  # noqa: BLE001 — keep the loop alive
+                    log.error(
+                        "periodic sync failed error=%s",
+                        e,
+                    )
             await asyncio.sleep(self._interval)
 
     def start(self) -> None:

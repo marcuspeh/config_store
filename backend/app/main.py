@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from app.api.routes import router as api_router
 from app.config.settings import get_settings
 from app.database.session import close_db, init_db
-from app.logging_setup import client, setup_logging, shutdown_logging
+from app.logging_setup import client, log_id_scope, setup_logging, shutdown_logging
 from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.correlation import CorrelationIdMiddleware
 from app.services.config_service import ConfigService
@@ -28,7 +28,9 @@ async def lifespan(app: FastAPI):
         await init_db()
         log.info("Database initialized")
 
-        await config_service.sync_from_remote()
+        with log_id_scope() as log_id:
+            log.info("Startup sync starting log_id=%s", log_id)
+            await config_service.sync_from_remote()
 
         scheduler = SyncScheduler(config_service, settings.sync_interval)
         scheduler.start()

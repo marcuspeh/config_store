@@ -10,18 +10,21 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
+from contextlib import contextmanager
+from typing import Iterator, Optional
 
 from app.config.settings import get_settings
 
 try:
     import loggingsdk
-    from loggingsdk import Client, LoggingHandler, ParseLevel
+    from loggingsdk import Client, LoggingHandler, ParseLevel, log_id_var, new_log_id
 except Exception:  # pragma: no cover - SDK unavailable
     loggingsdk = None  # type: ignore[assignment]
     Client = None  # type: ignore[assignment]
     LoggingHandler = None  # type: ignore[assignment]
     ParseLevel = None  # type: ignore[assignment]
+    log_id_var = None  # type: ignore[assignment]
+    new_log_id = None  # type: ignore[assignment]
 
 # Shared SDK client. None when the SDK is unavailable or disabled.
 _client_instance: Optional["loggingsdk.Client"] = None
@@ -85,6 +88,29 @@ def client():
     if _client_instance is None:
         setup_logging()
     return _client_instance if _client_instance is not None else _NullClient()
+
+
+@contextmanager
+def log_id_scope(request_id: Optional[str] = None) -> Iterator[str]:
+    """Bind a correlation id outside a request, e.g. in background tasks.
+
+    Reuses an already-bound id when nested, otherwise generates one.
+    """
+    if log_id_var is None:
+        yield request_id or "unknown"
+        return
+
+    existing = log_id_var.get()
+    if existing:
+        yield existing
+        return
+
+    resolved = request_id or (new_log_id() if new_log_id is not None else "unknown")
+    token = log_id_var.set(resolved)
+    try:
+        yield resolved
+    finally:
+        log_id_var.reset(token)
 
 
 def shutdown_logging() -> None:
