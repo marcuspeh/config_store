@@ -25,6 +25,10 @@ def _request_id() -> str:
     return current_log_id() if current_log_id is not None else "unknown"
 
 
+# Health checks are frequent and uninteresting; keep them out of the logs.
+EXCLUDED_PATHS = frozenset({"/health"})
+
+
 class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self,
@@ -35,6 +39,10 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         request_id = _request_id()
         method = request.method
         path = request.url.path
+
+        if path in EXCLUDED_PATHS:
+            return await call_next(request)
+
         started = time.perf_counter()
 
         log.info(

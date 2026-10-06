@@ -138,6 +138,35 @@ def test_client_accessor_returns_null_when_disabled():
     assert hasattr(log, "project")
 
 
+def test_access_log_middleware_skips_health(monkeypatch):
+    class FakeClient:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        def info(self, fmt: str, *args):
+            self.calls.append(fmt)
+
+        def error(self, fmt: str, *args):
+            self.calls.append(fmt)
+
+    fake = FakeClient()
+    monkeypatch.setattr("app.middleware.access_log.client", lambda: fake)
+
+    async def ok(request: Request) -> PlainTextResponse:
+        return PlainTextResponse("ok")
+
+    app = Starlette(
+        middleware=[Middleware(AccessLogMiddleware)],
+        routes=[Route("/health", ok), Route("/ok", ok)],
+    )
+    test_client = TestClient(app)
+    assert test_client.get("/health").status_code == 200
+    assert fake.calls == []
+
+    test_client.get("/ok")
+    assert fake.calls
+
+
 def test_access_log_middleware_invokes_client_info_and_error(monkeypatch):
     class FakeClient:
         def __init__(self):
