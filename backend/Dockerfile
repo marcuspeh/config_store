@@ -8,17 +8,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl is used by the compose healthcheck. git is required by uv to
-# resolve the `logging-sdk` git dependency during `uv sync`.
+# curl is used by the compose healthcheck; git is required by uv to
+# resolve the `logging-sdk` git dependency.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast Python package management.
 RUN pip install uv
 
-# Install Python deps first for layer caching. `logging-sdk` is
-# resolved from its GitHub repo via [tool.uv.sources] in pyproject.toml.
+# Deps first for layer caching; logging-sdk comes from GitHub via uv sources.
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen
 

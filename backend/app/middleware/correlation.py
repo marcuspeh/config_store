@@ -1,10 +1,8 @@
-"""FastAPI middleware that binds the logging SDK's correlation id per request.
+"""Binds the logging SDK's correlation id for the lifetime of a request.
 
-Every request gets a unique id (``X-Request-ID`` header if the caller
-provided one, otherwise an id from the SDK's ``new_log_id()``). The id is
-bound to the SDK's ``log_id_var`` contextvar for the lifetime of the
-request so any log call routed through the SDK ends up correlated in the
-logging collector, and is echoed back on the response.
+Uses the inbound ``X-Request-ID`` when present, otherwise an id from the
+SDK's ``new_log_id()``. The id is bound to ``log_id_var`` and echoed on the
+response so clients can correlate their logs with ours.
 """
 
 from __future__ import annotations

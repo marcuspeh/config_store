@@ -139,8 +139,6 @@ def test_client_accessor_returns_null_when_disabled():
 
 
 def test_access_log_middleware_invokes_client_info_and_error(monkeypatch):
-    """Successful request logs info; 5xx response logs error."""
-
     class FakeClient:
         def __init__(self):
             self.calls: list[tuple[str, str]] = []

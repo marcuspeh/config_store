@@ -1,14 +1,7 @@
-"""FastAPI middleware that logs every incoming request + outgoing response.
+"""Logs the inbound request and the outgoing response.
 
-Captures:
-
-* the inbound method, path, and correlation id (set by the
-  CorrelationIdMiddleware), and emits a single ``info`` line on the way in;
-* the response status + duration on the way out, with ``error`` if the
-  status is >= 500.
-
-All log calls go through :func:`app.logging_setup.client` so events flow
-through the logging-system SDK alongside everything else.
+Emits one ``info`` line on the way in, then the status and duration on the
+way out (``error`` when the status is >= 500). Bodies are never logged.
 """
 
 from __future__ import annotations

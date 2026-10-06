@@ -1,14 +1,19 @@
 """Pytest configuration and fixtures."""
-import pytest
+
+import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
-# Ensure project root is in path
+import pytest
+
+import app.clients as _app_clients
+import app.clients.mongo as _app_clients_mongo
+import app.database.repositories as _app_repos
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-# Pre-create mock classes
 class MockMongoClient:
     def __init__(self, *args, **kwargs):
         pass
@@ -58,31 +63,8 @@ class MockConfigRepository:
         return False
 
 
-# Stub the new client + repository modules so tests can construct
-# ConfigService without instantiating real Mongo / Tortoise.
-mock_clients_module = MagicMock()
-mock_clients_module.MongoClient = MockMongoClient
-
-mock_repositories_module = MagicMock()
-mock_repositories_module.ConfigRepository = MockConfigRepository
-
-mock_db_module = MagicMock()
-mock_db_module.models = MagicMock()
-
-# Legacy module paths (kept for any stragglers).
-sys.modules['db'] = mock_db_module
-sys.modules['db.models'] = mock_db_module.models
-sys.modules['db.mongodb_manager'] = mock_db_module
-sys.modules['db.mysql_manager'] = mock_db_module
-
-# Current module paths used by app.services.config_service.
-# NOTE: We stub the *attributes* of app.clients and app.database.repositories
-# but leave the parent packages themselves untouched so the real
-# app.database.session module can still be imported.
-import app.clients as _app_clients  # noqa: E402
-import app.clients.mongo as _app_clients_mongo  # noqa: E402
-import app.database.repositories as _app_repos  # noqa: E402
-
+# Patch the client + repository classes so ConfigService can be built without
+# real Mongo / Tortoise instances.
 _app_clients.MongoClient = MockMongoClient  # type: ignore[attr-defined]
 _app_clients_mongo.MongoClient = MockMongoClient  # type: ignore[attr-defined]
 _app_repos.ConfigRepository = MockConfigRepository  # type: ignore[attr-defined]
@@ -90,8 +72,6 @@ _app_repos.ConfigRepository = MockConfigRepository  # type: ignore[attr-defined]
 
 @pytest.fixture
 def event_loop():
-    """Create an event loop for the test session."""
-    import asyncio
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
@@ -99,7 +79,6 @@ def event_loop():
 
 @pytest.fixture
 def mock_mongo_client():
-    """Mock MongoClient."""
     mock = AsyncMock()
     mock.fetch_all_configs = AsyncMock(return_value=[])
     mock.upsert_config = AsyncMock()
@@ -110,7 +89,6 @@ def mock_mongo_client():
 
 @pytest.fixture
 def mock_config_repository():
-    """Mock ConfigRepository."""
     mock = AsyncMock()
     mock.upsert = AsyncMock()
     mock.delete_stale = AsyncMock()
@@ -126,7 +104,6 @@ def mock_config_repository():
 
 @pytest.fixture
 def sample_mongo_configs():
-    """Sample MongoDB config documents."""
     return [
         {"project": "project-a", "key": "database_url", "value": "postgres://localhost/db"},
         {"project": "project-a", "key": "api_key", "value": "secret-key-123"},
@@ -136,7 +113,6 @@ def sample_mongo_configs():
 
 @pytest.fixture
 def sample_config_tuples():
-    """Sample config data as list of tuples."""
     return [
         ("project-a", "database_url", "postgres://localhost/db"),
         ("project-a", "api_key", "secret-key-123"),
