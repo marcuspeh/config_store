@@ -36,6 +36,10 @@ export function useCreateConfig(): UseMutationResult<
     mutationFn: ({ project, key, body }: CreateConfigArgs) =>
       createConfig(project, key, body),
     onSuccess: (_data, { project }) => {
+      // First write into a brand-new project namespace will have an
+      // empty (or stale) configs cache. Invalidate both the project
+      // summary and the configs list — the workspace page reads from
+      // `useProjectConfigs(activeProject)` immediately after success.
       void qc.invalidateQueries({ queryKey: queryKeys.configs(project) });
       void qc.invalidateQueries({ queryKey: queryKeys.projects() });
     },

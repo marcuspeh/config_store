@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { toast } from "sonner";
 import clsx from "clsx";
 
 interface CopyButtonProps {
@@ -35,8 +36,7 @@ export function CopyButton({
       // user knows why nothing happened. We don't try a textarea
       // fallback here because modern browsers all support the
       // clipboard API and the failure mode is unusual.
-      // eslint-disable-next-line no-alert
-      window.alert(
+      toast.error(
         `Could not copy to clipboard: ${(err as Error).message}. ${successMessage} requires the Clipboard API.`,
       );
     }
