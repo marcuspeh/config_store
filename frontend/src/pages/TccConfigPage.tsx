@@ -154,9 +154,9 @@ export function TccConfigPage(): ReactElement {
   }
 
   // 409 means the key already exists — point the user at Edit instead.
-  function conflictMessage(err: unknown): string | null {
+  function conflictMessage(err: unknown, key: string): string | null {
     return axios.isAxiosError(err) && err.response?.status === 409
-      ? `A config named "${form.key}" already exists in this project.`
+      ? `A config named "${key}" already exists in this project.`
       : null;
   }
 
@@ -169,6 +169,8 @@ export function TccConfigPage(): ReactElement {
       : null;
   }
 
+  // The dialog closes as soon as a valid submit is pressed, so failed
+  // requests are reported as toasts rather than inline form errors.
   function handleSaveConfig() {
     const keyError = validateKey(form.key);
     const valueError = validateValue(form.value);
@@ -177,20 +179,23 @@ export function TccConfigPage(): ReactElement {
       return;
     }
 
+    // Snapshot the fields before closeModal() resets the form buffers.
+    const key = form.key;
+    const value = form.value;
+
     if (modal === "edit") {
       if (!activeProject || !configId) {
         setFormError("Missing project or config key. Refresh and retry.");
         return;
       }
+      const target = configId;
+      closeModal();
       update.mutate(
-        { project: activeProject, key: configId, body: { value: form.value } },
+        { project: activeProject, key: target, body: { value } },
         {
-          onSuccess: () => {
-            toast.success("Saved");
-            closeModal();
-          },
+          onSuccess: () => toast.success("Saved"),
           onError: (err) =>
-            setFormError(
+            toast.error(
               notFoundMessage(err) ?? `Save failed: ${extractErrorMessage(err)}`,
             ),
         },
@@ -202,16 +207,16 @@ export function TccConfigPage(): ReactElement {
       setFormError("Select a project before creating a config.");
       return;
     }
+    const project = activeProject;
+    closeModal();
     create.mutate(
-      { project: activeProject, key: form.key, body: { value: form.value } },
+      { project, key, body: { value } },
       {
-        onSuccess: () => {
-          toast.success(`Created ${form.key}`);
-          closeModal();
-        },
+        onSuccess: () => toast.success(`Created ${key}`),
         onError: (err) =>
-          setFormError(
-            conflictMessage(err) ?? `Create failed: ${extractErrorMessage(err)}`,
+          toast.error(
+            conflictMessage(err, key) ??
+              `Create failed: ${extractErrorMessage(err)}`,
           ),
       },
     );
@@ -226,21 +231,20 @@ export function TccConfigPage(): ReactElement {
       return;
     }
 
+    // Snapshot before closeModal() resets the buffers.
+    const project = newProject.project;
+    const key = newProject.key;
+    const value = newProject.value;
+
+    closeModal();
+    updateParams({ project });
     create.mutate(
+      { project, key, body: { value } },
       {
-        project: newProject.project,
-        key: newProject.key,
-        body: { value: newProject.value },
-      },
-      {
-        onSuccess: () => {
-          toast.success(`Project ${newProject.project} initialized`);
-          closeModal();
-          updateParams({ project: newProject.project });
-        },
+        onSuccess: () => toast.success(`Project ${project} initialized`),
         onError: (err) =>
-          setFormError(
-            conflictMessage(err) ??
+          toast.error(
+            conflictMessage(err, key) ??
               `Create failed: ${extractErrorMessage(err)}`,
           ),
       },
@@ -252,15 +256,15 @@ export function TccConfigPage(): ReactElement {
       setFormError("Missing project or config key. Refresh and retry.");
       return;
     }
+    const project = activeProject;
+    const target = configId;
+    closeModal();
     remove.mutate(
-      { project: activeProject, key: configId },
+      { project, key: target },
       {
-        onSuccess: () => {
-          toast.success(`Deleted ${configId}`);
-          closeModal();
-        },
+        onSuccess: () => toast.success(`Deleted ${target}`),
         onError: (err) =>
-          setFormError(
+          toast.error(
             notFoundMessage(err) ?? `Delete failed: ${extractErrorMessage(err)}`,
           ),
       },

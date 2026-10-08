@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -25,10 +26,19 @@ export function Modal({
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    // Stop the page behind the overlay from scrolling while it's open.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [isOpen, onClose]);
 
-  return (
+  // Portalled to <body> so the dialog escapes the workspace card's
+  // paint/stacking context — rendering it in place made every open
+  // repaint the dotted background and the whole config list.
+  return createPortal(
     <AnimatePresence>
       {isOpen ? (
         <>
@@ -36,8 +46,9 @@ export function Modal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-slate-900/50"
           />
           {/* Centering uses a grid wrapper rather than
             `-translate-x-1/2 -translate-y-1/2` on the panel: framer-motion
@@ -45,16 +56,17 @@ export function Modal({
             overrides the Tailwind translate utilities and left the panel
             hanging from the viewport center point instead of centered on
             it. */}
-          <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
+          <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4">
             <motion.div
               role="dialog"
               aria-modal="true"
               aria-label={title}
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
               className={cn(
-                "pointer-events-auto grid w-full max-w-lg gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-2xl",
+                "grid w-full max-w-lg gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-2xl will-change-transform",
                 className,
               )}
             >
@@ -76,6 +88,7 @@ export function Modal({
           </div>
         </>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
