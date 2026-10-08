@@ -514,12 +514,19 @@ export function TccConfigPage(): ReactElement {
             </p>
           ) : null}
           <div className="space-y-2">
-            <label
-              htmlFor="config-key"
-              className="text-xs font-semibold uppercase tracking-wider text-slate-500"
-            >
-              Key
-            </label>
+            <div className="flex items-baseline justify-between gap-2">
+              <label
+                htmlFor="config-key"
+                className="text-xs font-semibold uppercase tracking-wider text-slate-500"
+              >
+                Key
+              </label>
+              {isEditing ? (
+                <span className="text-xs text-slate-400">
+                  Key cannot be changed
+                </span>
+              ) : null}
+            </div>
             <Input
               id="config-key"
               className="font-mono"
