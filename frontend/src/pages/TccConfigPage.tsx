@@ -32,7 +32,6 @@ import { Button } from "../components/ui/Button";
 import { Input, Textarea } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { ErrorBanner } from "../components/ErrorBanner";
-import { CopyButton } from "../components/CopyButton";
 import { cn } from "../lib/utils";
 
 const PAGE_SIZE = 12;
@@ -724,7 +723,6 @@ function RowActions({
       >
         <Edit2 className="h-4 w-4" aria-hidden="true" />
       </Button>
-      <CopyButton value={configKey} label="Copy key" />
       <Button
         size="sm"
         variant="ghost"
