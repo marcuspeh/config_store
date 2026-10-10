@@ -3,9 +3,6 @@ from typing import Optional, List, Tuple
 from tortoise.expressions import Q
 
 from app.database.models.config import ConfigModel
-from app.logging_setup import client
-
-log = client()
 
 
 class ConfigRepository:
@@ -25,26 +22,19 @@ class ConfigRepository:
             if obj.value != value:
                 obj.value = value
                 await obj.save()
-        log.info("mysql upserted count=%d", len(configs))
 
     async def delete_stale(self, current_keys: List[Tuple[str, str]]) -> None:
         """Delete rows that are not present in `current_keys`."""
         if not current_keys:
-            deleted = await ConfigModel.all().delete()
-            log.info("mysql stale deleted count=%d reason=no_current_keys", deleted)
+            await ConfigModel.all().delete()
             return
 
         batch_size = 500
-        total_deleted = 0
         for i in range(0, len(current_keys), batch_size):
             batch = current_keys[i:i + batch_size]
             conditions = [Q(project=p, config_key=k) for p, k in batch]
             keep_conditions = Q(*conditions, join_type="OR")
-            total_deleted += await ConfigModel.filter(~keep_conditions).delete()
-        log.info(
-            "mysql stale deleted count=%d current_keys=%d",
-            total_deleted, len(current_keys),
-        )
+            await ConfigModel.filter(~keep_conditions).delete()
 
     async def get_value(self, project: str, config_key: str) -> Optional[str]:
         """Retrieve a single config value by (project, key)."""

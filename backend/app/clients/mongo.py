@@ -23,7 +23,6 @@ class MongoClient:
             )
             async for document in cursor:
                 configs.append(document)
-            log.info("mongo fetched count=%d", len(configs))
         except Exception as e:
             log.error("mongo fetch failed error=%s", e)
             raise

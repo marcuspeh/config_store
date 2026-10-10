@@ -17,12 +17,7 @@ class SyncScheduler:
     async def _loop(self) -> None:
         # No request scope out here, so each iteration gets its own log id.
         while True:
-            with log_id_scope() as log_id:
-                log.info(
-                    "periodic sync starting interval=%ds log_id=%s",
-                    self._interval,
-                    log_id,
-                )
+            with log_id_scope():
                 try:
                     await self._service.sync_from_remote()
                 except Exception as e:  # noqa: BLE001 — keep the loop alive

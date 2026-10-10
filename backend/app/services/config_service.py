@@ -24,7 +24,6 @@ class ConfigService:
 
     async def sync_from_remote(self) -> None:
         """Pull all configs from MongoDB and refresh the MySQL cache."""
-        log.info("sync starting source=mongo target=mysql")
         try:
             mongo_configs = await self._mongo.fetch_all_configs()
 
@@ -46,10 +45,6 @@ class ConfigService:
                 await self._repo.upsert(upsert_data)
 
             await self._repo.delete_stale(current_keys)
-
-            log.info(
-                "sync complete fetched=%d upserted=%d", len(mongo_configs), len(upsert_data),
-            )
         except Exception as e:
             log.error("sync failed error=%s", e)
             raise
