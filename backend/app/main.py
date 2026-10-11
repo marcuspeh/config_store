@@ -9,7 +9,6 @@ from app.api.routes import router as api_router
 from app.config.settings import get_settings
 from app.database.session import close_db, init_db
 from app.logging_setup import client, log_id_scope, setup_logging, shutdown_logging
-from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.correlation import CorrelationIdMiddleware
 from app.services.config_service import ConfigService
 from app.services.sync_scheduler import SyncScheduler
@@ -46,8 +45,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Config Store", lifespan=lifespan)
-# Correlation is added last so it wraps access logging and the id is bound first.
-app.add_middleware(AccessLogMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.include_router(api_router)
 

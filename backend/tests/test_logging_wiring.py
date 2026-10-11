@@ -21,7 +21,6 @@ from app import logging_setup as logging_pkg
 from app.config import settings as settings_pkg
 from app.logging_setup import client as get_log_client
 from app.logging_setup import log_id_scope, setup_logging
-from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.correlation import CorrelationIdMiddleware
 from app.services.sync_scheduler import SyncScheduler
 
@@ -201,66 +200,3 @@ def test_sync_scheduler_binds_log_id_per_iteration(monkeypatch):
     assert seen[0] != seen[1], "each iteration should get a fresh id"
 
 
-def test_access_log_middleware_skips_health(monkeypatch):
-    class FakeClient:
-        def __init__(self):
-            self.calls: list[str] = []
-
-        def info(self, fmt: str, *args):
-            self.calls.append(fmt)
-
-        def error(self, fmt: str, *args):
-            self.calls.append(fmt)
-
-    fake = FakeClient()
-    monkeypatch.setattr("app.middleware.access_log.client", lambda: fake)
-
-    async def ok(request: Request) -> PlainTextResponse:
-        return PlainTextResponse("ok")
-
-    app = Starlette(
-        middleware=[Middleware(AccessLogMiddleware)],
-        routes=[Route("/health", ok), Route("/ok", ok)],
-    )
-    test_client = TestClient(app)
-    assert test_client.get("/health").status_code == 200
-    assert fake.calls == []
-
-    test_client.get("/ok")
-    assert fake.calls
-
-
-def test_access_log_middleware_invokes_client_info_and_error(monkeypatch):
-    class FakeClient:
-        def __init__(self):
-            self.calls: list[tuple[str, str]] = []
-
-        def info(self, fmt: str, *args):
-            self.calls.append(("info", fmt))
-
-        def error(self, fmt: str, *args):
-            self.calls.append(("error", fmt))
-
-    fake = FakeClient()
-    monkeypatch.setattr("app.middleware.access_log.client", lambda: fake)
-
-    async def ok(request: Request) -> PlainTextResponse:
-        return PlainTextResponse("ok")
-
-    async def boom(request: Request) -> PlainTextResponse:
-        return PlainTextResponse("boom", status_code=500)
-
-    app = Starlette(
-        middleware=[Middleware(AccessLogMiddleware)],
-        routes=[Route("/ok", ok), Route("/boom", boom)],
-    )
-    test_client = TestClient(app)
-    test_client.get("/ok")
-    test_client.get("/boom")
-
-    levels = [c[0] for c in fake.calls]
-    assert "info" in levels
-    assert "error" in levels
-    messages = " ".join(c[1] for c in fake.calls)
-    assert "request completed" in messages
-    assert "request failed" in messages
