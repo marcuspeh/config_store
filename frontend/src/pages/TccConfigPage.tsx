@@ -79,9 +79,17 @@ export function TccConfigPage(): ReactElement {
     [projects.data],
   );
 
-  // Land on the first project when the URL doesn't name one.
+  // Land on the first project when the URL doesn't name one. A project
+  // exists only while it has at least one config, so deleting the last
+  // row drops it from the list while `?project=` still points at it —
+  // fall back to the first surviving project in that case too. Waits
+  // for the query to settle so it can't fire against a stale list.
   useEffect(() => {
-    if (activeProject || projectList.length === 0) return;
+    if (projects.isPending || projects.isError) return;
+    if (projectList.length === 0) return;
+    if (activeProject && projectList.some((p) => p.project === activeProject)) {
+      return;
+    }
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -90,7 +98,7 @@ export function TccConfigPage(): ReactElement {
       },
       { replace: true },
     );
-  }, [activeProject, projectList, setSearchParams]);
+  }, [activeProject, projectList, projects.isPending, projects.isError, setSearchParams]);
 
   const filtered = useMemo(() => {
     const list = configs.data ?? [];
