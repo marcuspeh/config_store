@@ -4,7 +4,7 @@
 #
 # - Builds only the backend image.
 # - Requires external MongoDB and MySQL instances.
-# - Source is bind-mounted for hot reload.
+# - Source is bind-mounted; restart the container to pick up edits.
 #
 # Host ports:
 #   config_store : 6002 -> 6002
@@ -19,17 +19,6 @@ services:
     container_name: config_store
     restart: unless-stopped
     working_dir: /app
-
-    command:
-      - "uv"
-      - "run"
-      - "uvicorn"
-      - "app.main:app"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "6002"
-      - "--reload"
 
     environment:
       CONFIG_STORE_PORT: "6002"
