@@ -54,6 +54,7 @@ services:
       - config-store-net
       - spending-tracker-net
       - algo01-net
+      - algo02-net
       - logging-net
 
 networks:
@@ -64,4 +65,6 @@ networks:
   spending-tracker-net:
     external: true
   algo01-net:
+    external: true
+  algo02-net:
     external: true
